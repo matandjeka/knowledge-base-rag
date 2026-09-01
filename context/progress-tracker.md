@@ -1,7 +1,9 @@
 # Advanced Multi-Source Enterprise RAG — Progress Tracker
 
 ## Overall Status
-**Current Stage:** Phase 0 — Project Foundation
+**Last Completed Phase:** Phase 1 — Canonical Source Model
+
+**Next Phase:** Phase 2 — PDF Ingestion (ready to start)
 
 ## Status Legend
 - [ ] Not started
@@ -19,6 +21,8 @@
 - [x] Create `.env.example`
 - [x] Create FastAPI app
 - [x] Create Streamlit app shell
+- [x] Add structured logging
+- [x] Create FastAPI health endpoint
 
 ## 2. Domain Models
 - [x] Source model
@@ -26,6 +30,8 @@
 - [x] RawDocument model
 - [x] NormalizedDocument model
 - [x] Evidence model
+- [x] Add source lifecycle statuses
+- [x] Create source registry repository
 - [ ] QueryRequest model
 - [ ] QueryResponse model
 - [ ] Citation model
@@ -140,8 +146,8 @@
 - [ ] Evaluation of routing impact
 
 ## 16. Streamlit UI
-- [ ] App shell
-- [ ] Sidebar
+- [x] App shell
+- [x] Sidebar
 - [ ] Source manager
 - [ ] PDF upload
 - [ ] Website form
@@ -167,7 +173,7 @@
 
 ## 18. Observability
 - [ ] Trace IDs
-- [ ] Structured logs
+- [x] Structured logs
 - [ ] Retriever timings
 - [ ] Fusion trace
 - [ ] Re-ranker trace
@@ -190,7 +196,7 @@
 - [ ] Docker Compose
 - [ ] Local PostgreSQL
 - [ ] Local Neo4j option
-- [ ] Health checks
+- [x] Health checks
 
 ## 21. Azure Deployment
 - [ ] Azure subscription/resource group
@@ -210,12 +216,12 @@
 - [ ] Connect to Azure backend
 
 ## 23. Portfolio Readiness
-- [ ] Architecture diagram
+- [x] Architecture diagram
 - [ ] Demo dataset
 - [ ] Demo script
 - [ ] Screenshot set
 - [ ] Recorded walkthrough
-- [ ] README
+- [x] README
 - [ ] Resume project bullets
 - [ ] Interview explanation
 

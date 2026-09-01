@@ -26,14 +26,14 @@ def test_evidence_uses_independent_mutable_defaults() -> None:
     assert second.metadata == {}
 
 
-def test_normalized_document_preserves_tenant_and_creation_time() -> None:
+def test_normalized_document_preserves_workspace_and_creation_time() -> None:
     document = NormalizedDocument(
-        tenant_id="tenant-123",
+        workspace_id="workspace-123",
         source_id=uuid4(),
         source_type=SourceType.PDF,
         content="A normalized passage",
     )
 
-    assert document.tenant_id == "tenant-123"
+    assert document.workspace_id == "workspace-123"
     assert document.created_at.tzinfo is UTC
     assert document.created_at <= datetime.now(UTC)
