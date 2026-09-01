@@ -1,9 +1,9 @@
 # Advanced Multi-Source Enterprise RAG — Progress Tracker
 
 ## Overall Status
-**Last Completed Phase:** Phase 1 — Canonical Source Model
+**Last Completed Phase:** Phase 2 — PDF Ingestion
 
-**Next Phase:** Phase 2 — PDF Ingestion (ready to start)
+**Next Phase:** Phase 3 — Website Ingestion (ready to start)
 
 ## Status Legend
 - [ ] Not started
@@ -37,14 +37,14 @@
 - [ ] Citation model
 
 ## 3. PDF Source
-- [ ] PDF uploader
-- [ ] File validation
-- [ ] PDF parsing
-- [ ] Page metadata
-- [ ] Chunking
-- [ ] Indexing
-- [ ] Page citations
-- [ ] PDF ingestion tests
+- [x] PDF uploader
+- [x] File validation
+- [x] PDF parsing
+- [x] Page metadata
+- [x] Chunking
+- [x] Indexing
+- [x] Page citations
+- [x] PDF ingestion tests
 
 ## 4. Website Source
 - [ ] URL validation
@@ -130,7 +130,7 @@
 
 ## 14. Citations
 - [ ] Stable citation IDs
-- [ ] PDF locator
+- [x] PDF locator
 - [ ] Website locator
 - [ ] CSV locator
 - [ ] Database locator
@@ -149,7 +149,7 @@
 - [x] App shell
 - [x] Sidebar
 - [ ] Source manager
-- [ ] PDF upload
+- [x] PDF upload
 - [ ] Website form
 - [ ] CSV upload
 - [ ] DB form
@@ -185,7 +185,7 @@
 - [ ] Workspace/tenant model
 - [ ] Source authorization
 - [ ] Retrieval metadata filters
-- [ ] File validation
+- [x] File validation
 - [ ] Crawl allowlist
 - [ ] Secret management
 - [ ] SQL read-only enforcement

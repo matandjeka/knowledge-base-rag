@@ -29,12 +29,26 @@ Options:
 - Database
 
 ### `PdfUploader`
+File: `ui/streamlit_app.py`
+Last updated: 2026-09-01
+
 Inputs:
 - file(s)
 - optional tags
 
 Outputs:
 - uploaded source IDs
+
+| Property | Streamlit pattern |
+| --- | --- |
+| Container | `st.sidebar` source-management panel |
+| Input | Labeled `st.file_uploader`, PDF constrained |
+| Primary action | `st.button(type="primary", use_container_width=True)` |
+| Supporting text | Input `help` text for limits and OCR behavior |
+| Success feedback | `st.success` with the registered source name |
+| Error feedback | `st.error` with actionable API-safe detail |
+
+**Pattern notes:** Keep source upload controls in the sidebar. Require an explicit primary action after file selection, state limits in help text, and never display stack traces.
 
 ### `WebsiteSourceForm`
 Inputs:
@@ -71,6 +85,9 @@ Actions:
 - delete
 
 ### `IngestionStatus`
+File: `ui/streamlit_app.py`
+Last updated: 2026-09-01
+
 States:
 - queued
 - downloading
@@ -81,6 +98,15 @@ States:
 - indexing
 - ready
 - failed
+
+| Property | Streamlit pattern |
+| --- | --- |
+| Active state | Expanded `st.status` using an action-oriented label |
+| Progress detail | Short `status.write` lines with page and chunk counts |
+| Success state | `state="complete"`, collapsed after completion |
+| Error state | `state="error"`, kept visible with retry guidance |
+
+**Pattern notes:** Status text must describe the current operation and finish in an explicit ready or failed state. Show measurable ingestion results when available; do not imply embedding or retrieval readiness before those phases exist.
 
 ## 4. Chat Components
 

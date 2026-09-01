@@ -10,15 +10,17 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.116,<1",
+    "httpx>=0.28,<1",
+    "pymupdf>=1.26,<2",
     "pydantic>=2.11,<3",
     "pydantic-settings>=2.10,<3",
+    "python-multipart>=0.0.20,<1",
     "streamlit>=1.48,<2",
     "uvicorn[standard]>=0.35,<1",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28,<1",
     "mypy>=1.17,<2",
     "pytest>=8.4,<9",
     "pytest-asyncio>=1.1,<2",
@@ -32,6 +34,11 @@ packages = ["app"]
 addopts = "-ra"
 testpaths = ["tests"]
 asyncio_mode = "auto"
+filterwarnings = [
+    "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type SwigPyObject has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
+]
 
 [tool.ruff]
 target-version = "py312"
