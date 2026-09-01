@@ -2,7 +2,7 @@
 
 from app.models.documents import Evidence, NormalizedDocument, RawDocument
 from app.models.health import HealthResponse
-from app.models.sources import Source, SourceConfig, SourceStatus, SourceType
+from app.models.sources import Source, SourceConfig, SourceStatus, SourceType, SourceUpdate
 
 __all__ = [
     "Evidence",
@@ -13,4 +13,5 @@ __all__ = [
     "SourceConfig",
     "SourceStatus",
     "SourceType",
+    "SourceUpdate",
 ]

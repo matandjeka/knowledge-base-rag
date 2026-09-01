@@ -33,5 +33,13 @@ class SourceNotFoundError(ApplicationError):
     """Raised when a requested source does not exist."""
 
 
+class SourceAlreadyExistsError(ApplicationError):
+    """Raised when a source identifier is already registered."""
+
+
+class InvalidSourceTransitionError(ApplicationError):
+    """Raised when a source lifecycle transition is not permitted."""
+
+
 class UnauthorizedSourceError(ApplicationError):
     """Raised when a caller cannot access a source."""
