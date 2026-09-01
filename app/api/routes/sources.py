@@ -1,0 +1,87 @@
+"""Knowledge-source registration and inspection routes."""
+
+from typing import Annotated
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+
+from app.api.dependencies import (
+    get_pdf_ingestion_service,
+    get_source_repository,
+    get_source_storage,
+)
+from app.core.config import get_settings
+from app.core.exceptions import IngestionError, PdfValidationError, SourceNotFoundError
+from app.ingestion.service import PdfIngestionService
+from app.models import NormalizedDocument, PdfIngestionResult, Source
+from app.repositories import InMemorySourceRepository
+from app.storage import LocalSourceStorage
+
+router = APIRouter(prefix="/sources", tags=["sources"])
+
+WorkspaceForm = Annotated[
+    str,
+    Form(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_-]+$",
+        description="Workspace isolation identifier",
+    ),
+]
+WorkspaceQuery = Annotated[
+    str,
+    Query(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
+]
+
+
+@router.post("/pdf", response_model=PdfIngestionResult, status_code=status.HTTP_201_CREATED)
+async def upload_pdf(
+    workspace_id: WorkspaceForm,
+    file: Annotated[UploadFile, File(description="PDF knowledge source")],
+    service: Annotated[PdfIngestionService, Depends(get_pdf_ingestion_service)],
+) -> PdfIngestionResult:
+    """Validate, store, parse, chunk, and register one PDF."""
+    settings = get_settings()
+    data = await file.read(settings.max_pdf_size_bytes + 1)
+    await file.close()
+    try:
+        return await service.ingest(
+            workspace_id=workspace_id,
+            filename=file.filename or "",
+            content_type=file.content_type,
+            data=data,
+        )
+    except PdfValidationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
+        ) from error
+    except IngestionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(error)
+        ) from error
+
+
+@router.get("", response_model=list[Source])
+async def list_sources(
+    workspace_id: WorkspaceQuery,
+    repository: Annotated[InMemorySourceRepository, Depends(get_source_repository)],
+) -> list[Source]:
+    """List source metadata within one workspace."""
+    return list(await repository.list(workspace_id))
+
+
+@router.get("/{source_id}/documents", response_model=list[NormalizedDocument])
+async def list_source_documents(
+    source_id: UUID,
+    workspace_id: WorkspaceQuery,
+    repository: Annotated[InMemorySourceRepository, Depends(get_source_repository)],
+    storage: Annotated[LocalSourceStorage, Depends(get_source_storage)],
+) -> list[NormalizedDocument]:
+    """Return persisted chunks and page locators for an accessible source."""
+    try:
+        await repository.get(workspace_id, source_id)
+        return list(await storage.load_documents(workspace_id, source_id))
+    except (SourceNotFoundError, FileNotFoundError) as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Source not found"
+        ) from error

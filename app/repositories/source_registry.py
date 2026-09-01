@@ -40,7 +40,14 @@ class SourceRepository(Protocol):
         """Update mutable metadata without changing lifecycle state."""
         ...
 
-    async def transition(self, workspace_id: str, source_id: UUID, status: SourceStatus) -> Source:
+    async def transition(
+        self,
+        workspace_id: str,
+        source_id: UUID,
+        status: SourceStatus,
+        *,
+        transitioned_at: datetime | None = None,
+    ) -> Source:
         """Apply a valid lifecycle transition."""
         ...
 
@@ -94,7 +101,14 @@ class InMemorySourceRepository:
             self._sources[source_id] = updated
             return updated.model_copy(deep=True)
 
-    async def transition(self, workspace_id: str, source_id: UUID, status: SourceStatus) -> Source:
+    async def transition(
+        self,
+        workspace_id: str,
+        source_id: UUID,
+        status: SourceStatus,
+        *,
+        transitioned_at: datetime | None = None,
+    ) -> Source:
         """Apply a permitted state change and refresh the modification time."""
         async with self._lock:
             current = self._get_scoped(workspace_id, source_id)
@@ -103,7 +117,8 @@ class InMemorySourceRepository:
                     f"Cannot transition source from {current.status} to {status}"
                 )
             updated = current.model_copy(
-                update={"status": status, "updated_at": datetime.now(UTC)}, deep=True
+                update={"status": status, "updated_at": transitioned_at or datetime.now(UTC)},
+                deep=True,
             )
             self._sources[source_id] = updated
             return updated.model_copy(deep=True)

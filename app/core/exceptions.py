@@ -9,6 +9,10 @@ class IngestionError(ApplicationError):
     """Raised when loading source material fails."""
 
 
+class PdfValidationError(IngestionError):
+    """Raised when an uploaded file is not an acceptable, extractable PDF."""
+
+
 class ParsingError(ApplicationError):
     """Raised when source parsing or normalization fails."""
 
