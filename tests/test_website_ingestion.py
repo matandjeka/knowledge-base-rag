@@ -25,6 +25,7 @@ from app.main import app
 from app.models import Source, SourceStatus, SourceType
 from app.repositories import InMemorySourceRepository
 from app.storage import LocalSourceStorage
+from tests.fakes import RecordingSourceIndexer
 
 
 class _FakeFetcher:
@@ -79,6 +80,7 @@ def _service(
         chunk_size=100,
         chunk_overlap=10,
         max_pages=20,
+        indexer=RecordingSourceIndexer(),
     )
     return service, repository, storage
 
@@ -397,6 +399,7 @@ async def test_ready_metadata_failure_leaves_website_source_failed(tmp_path: Pat
         chunk_size=100,
         chunk_overlap=10,
         max_pages=20,
+        indexer=RecordingSourceIndexer(),
     )
 
     with pytest.raises(IngestionError, match="Website ingestion failed"):

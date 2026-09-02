@@ -1,15 +1,15 @@
 # Advanced Multi-Source Enterprise RAG — Progress Tracker
 
 ## Overall Status
-**Last Completed Implementation Phase:** Phase 4 — CSV Ingestion
+**Last Completed Implementation Phase:** Phase 5 — Baseline Vector RAG
 
-**Next Phase:** Phase 5 — Baseline Vector RAG (ready to architect)
+**Next Phase:** Phase 6 — Sentence-Window Retrieval (ready to architect)
 
-**Last Phase With All Exit Criteria Satisfied:** Phase 1 — Canonical Source Model
+**Last Phase With All Exit Criteria Satisfied:** Phase 5 — Baseline Vector RAG
 
-Phases 2–4 have complete ingestion pipelines, but their build-plan exit criteria also
-require retrieval and rendered citations. Those portions remain deferred to Phase 5
-(Baseline Vector RAG) and Phase 13 (Advanced Citation Engine).
+Phases 2–5 now provide ingestion, durable FAISS/Pinecone indexing, cross-source retrieval,
+baseline grounded answers, and PDF/website/CSV citation locators. Advanced citation
+rendering and source inspection remain deferred to Phase 13.
 
 ## Status Legend
 - [ ] Not started
@@ -38,9 +38,9 @@ require retrieval and rendered citations. Those portions remain deferred to Phas
 - [x] Evidence model
 - [x] Add source lifecycle statuses
 - [x] Create source registry repository
-- [ ] QueryRequest model
-- [ ] QueryResponse model
-- [ ] Citation model
+- [x] QueryRequest model
+- [x] QueryResponse model
+- [x] Citation model
 
 ## 3. PDF Source
 - [x] PDF uploader
@@ -48,14 +48,13 @@ require retrieval and rendered citations. Those portions remain deferred to Phas
 - [x] PDF parsing
 - [x] Page metadata
 - [x] Chunking
-- [~] Indexing — normalized chunks persist; vector indexing is deferred to Phase 5
-- [~] Page citations — page locators persist; rendered citations are deferred to Phase 13
+- [x] Indexing
+- [x] Page citations
 - [x] PDF ingestion tests
 
 **Implementation status:** Complete
 
-**Exit criteria:** Partial — upload, parsing, chunk persistence, and page locators work;
-retrieval and cited answers are not implemented yet.
+**Exit criteria:** Complete — PDF evidence is indexed, retrieved, and cited by page.
 
 ## 4. Website Source
 - [x] URL validation
@@ -64,13 +63,12 @@ retrieval and cited answers are not implemented yet.
 - [x] Same-domain option
 - [x] Text cleaning
 - [x] URL metadata
-- [~] Indexing — normalized chunks persist; vector indexing is deferred to Phase 5
-- [~] Website citation tests — URL locators are tested; rendered citations await Phase 13
+- [x] Indexing
+- [x] Website citation tests
 
 **Implementation status:** Complete
 
-**Exit criteria:** Partial — URL submission, bounded crawling, extraction, chunk persistence,
-and URL locators work; question answering and cited answers are not implemented yet.
+**Exit criteria:** Complete — website evidence is indexed, retrieved, and cited by URL.
 
 ## 5. CSV Source
 - [x] CSV uploader
@@ -78,13 +76,12 @@ and URL locators work; question answering and cited answers are not implemented 
 - [x] Text-column selection
 - [x] Metadata-column selection
 - [x] Row normalization
-- [~] Indexing — normalized row documents persist; vector indexing is deferred to Phase 5
-- [~] Row citations — stable row locators persist; rendered citations are deferred to Phase 13
+- [x] Indexing
+- [x] Row citations
 
 **Implementation status:** Complete
 
-**Exit criteria:** Partial — upload, preview, column selection, row-document persistence,
-and stable row locators work; retrieval and cited answers are not implemented yet.
+**Exit criteria:** Complete — CSV rows are indexed, retrieved, and cited by stable row ID.
 
 ## 6. Database Source
 - [ ] SQLAlchemy adapter
@@ -97,12 +94,12 @@ and stable row locators work; retrieval and cited answers are not implemented ye
 - [ ] DB citations
 
 ## 7. Embeddings / Vector Store
-- [ ] Embedding interface
-- [ ] Hugging Face embeddings
-- [ ] FAISS adapter
-- [ ] Pinecone adapter
-- [ ] Metadata filtering
-- [ ] Vector retrieval tests
+- [x] Embedding interface
+- [x] Hugging Face embeddings
+- [x] FAISS adapter
+- [x] Pinecone adapter
+- [x] Metadata filtering
+- [x] Vector retrieval tests
 
 ## 8. Sentence Window Retrieval
 - [ ] Sentence parser
@@ -142,22 +139,22 @@ and stable row locators work; retrieval and cited answers are not implemented ye
 - [ ] Re-ranking evaluation
 
 ## 13. Generation
-- [ ] Grounded system prompt
-- [ ] Context builder
+- [x] Grounded system prompt
+- [x] Context builder
 - [ ] Token-budget management
-- [ ] LLM client abstraction
-- [ ] Insufficient-evidence response
-- [ ] Structured response contract
+- [x] Generation provider abstraction
+- [x] Insufficient-evidence response
+- [x] Structured response contract
 
 ## 14. Citations
-- [ ] Stable citation IDs
+- [x] Stable citation IDs
 - [x] PDF locator
 - [x] Website locator
-- [ ] CSV locator
+- [x] CSV locator
 - [ ] Database locator
 - [ ] Inline citation renderer
 - [ ] Source inspector
-- [ ] Citation accuracy tests
+- [x] Baseline citation accuracy tests
 
 ## 15. Query Routing
 - [ ] Rules-based router

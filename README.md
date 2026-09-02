@@ -37,3 +37,21 @@ uv run pytest
 ```
 
 The API health endpoint is available at `http://127.0.0.1:8000/health`.
+
+## Vector stores
+
+FAISS is the default local backend and requires no additional configuration.
+
+To use an existing Pinecone index, provision it with 384 dimensions and cosine similarity,
+then configure:
+
+```dotenv
+VECTOR_STORE_BACKEND=pinecone
+PINECONE_API_KEY=your-api-key
+PINECONE_INDEX_NAME=your-index-name
+PINECONE_INDEX_HOST=your-index-host.svc.pinecone.io
+```
+
+The application keeps each workspace in a separate Pinecone namespace. It stages complete
+generations before activation, applies source filters in Pinecone, and performs stale-generation
+cleanup after a successful activation. It never creates or deletes the configured Pinecone index.

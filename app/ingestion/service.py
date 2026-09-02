@@ -17,6 +17,7 @@ from app.models import (
     SourceUpdate,
 )
 from app.repositories import SourceRepository
+from app.retrieval.indexing import SourceIndexer
 from app.storage import SourceStorage
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ class PdfIngestionService:
         connector: PdfConnector,
         chunk_size: int,
         chunk_overlap: int,
+        indexer: SourceIndexer,
     ) -> None:
         if chunk_overlap >= chunk_size:
             raise ValueError("chunk_overlap must be smaller than chunk_size")
@@ -40,6 +42,7 @@ class PdfIngestionService:
         self._connector = connector
         self._chunk_size = chunk_size
         self._chunk_overlap = chunk_overlap
+        self._indexer = indexer
 
     async def ingest(
         self,
@@ -99,6 +102,7 @@ class PdfIngestionService:
                     )
                 ),
             )
+            generation = await self._indexer.prepare(workspace_id, source.source_id)
             ready_at = datetime.now(UTC)
             ready_source = source.model_copy(
                 update={"status": SourceStatus.READY, "updated_at": ready_at}, deep=True
@@ -110,6 +114,7 @@ class PdfIngestionService:
                 SourceStatus.READY,
                 transitioned_at=ready_at,
             )
+            await self._indexer.activate(workspace_id, generation.generation_id)
         except Exception as error:
             try:
                 await self._record_failure(source)

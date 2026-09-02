@@ -13,9 +13,11 @@ from app.models.ingestion import (
     WebsiteIngestionRequest,
     WebsiteIngestionResult,
 )
+from app.models.query import Citation, QueryRequest, QueryResponse, SourceIndexResult
 from app.models.sources import Source, SourceConfig, SourceStatus, SourceType, SourceUpdate
 
 __all__ = [
+    "Citation",
     "CrawlFailure",
     "CrawlManifest",
     "CsvColumnPreview",
@@ -26,9 +28,12 @@ __all__ = [
     "HealthResponse",
     "NormalizedDocument",
     "PdfIngestionResult",
+    "QueryRequest",
+    "QueryResponse",
     "RawDocument",
     "Source",
     "SourceConfig",
+    "SourceIndexResult",
     "SourceStatus",
     "SourceType",
     "SourceUpdate",

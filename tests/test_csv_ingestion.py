@@ -17,6 +17,7 @@ from app.main import app
 from app.models import Source, SourceStatus, SourceType
 from app.repositories import InMemorySourceRepository
 from app.storage import LocalSourceStorage
+from tests.fakes import RecordingSourceIndexer
 
 
 class _FailingCsvReadyStorage(LocalSourceStorage):
@@ -48,7 +49,11 @@ def _service(
 ) -> tuple[CsvIngestionService, InMemorySourceRepository, LocalSourceStorage]:
     repository = InMemorySourceRepository()
     storage = LocalSourceStorage(tmp_path / "data")
-    return CsvIngestionService(repository, storage, _connector()), repository, storage
+    return (
+        CsvIngestionService(repository, storage, _connector(), RecordingSourceIndexer()),
+        repository,
+        storage,
+    )
 
 
 def test_preview_infers_types_but_preserves_original_text() -> None:
@@ -266,7 +271,7 @@ async def test_all_empty_selected_rows_leave_source_failed(tmp_path: Path) -> No
 async def test_ready_metadata_failure_leaves_csv_source_failed(tmp_path: Path) -> None:
     repository = InMemorySourceRepository()
     storage = _FailingCsvReadyStorage(tmp_path / "data")
-    service = CsvIngestionService(repository, storage, _connector())
+    service = CsvIngestionService(repository, storage, _connector(), RecordingSourceIndexer())
 
     with pytest.raises(IngestionError, match="CSV ingestion failed"):
         await service.ingest(

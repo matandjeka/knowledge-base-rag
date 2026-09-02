@@ -43,6 +43,10 @@ class SourceStorage(Protocol):
         """Load normalized documents for inspection."""
         ...
 
+    async def list_sources(self, workspace_id: str) -> tuple[Source, ...]:
+        """Load persisted source metadata for one workspace."""
+        ...
+
     async def save_crawl_manifest(
         self, workspace_id: str, source_id: UUID, manifest: CrawlManifest
     ) -> None:
@@ -99,6 +103,19 @@ class LocalSourceStorage:
         text = await asyncio.to_thread(path.read_text)
         payloads = [line for line in text.splitlines() if line]
         return tuple(_DOCUMENTS_ADAPTER.validate_json(f"[{','.join(payloads)}]"))
+
+    async def list_sources(self, workspace_id: str) -> tuple[Source, ...]:
+        """Load persisted source metadata in deterministic creation order."""
+        workspace = (self._root / "workspaces" / workspace_id / "sources").resolve()
+        if not workspace.is_relative_to(self._root):
+            raise ValueError("Source path escapes the configured data directory")
+        if not workspace.is_dir():
+            return ()
+        paths = sorted(workspace.glob("*/source.json"))
+        sources = await asyncio.gather(
+            *(asyncio.to_thread(Source.model_validate_json, path.read_text()) for path in paths)
+        )
+        return tuple(sorted(sources, key=lambda source: (source.created_at, str(source.source_id))))
 
     async def save_crawl_manifest(
         self, workspace_id: str, source_id: UUID, manifest: CrawlManifest
