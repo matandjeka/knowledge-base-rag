@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     max_pdf_size_bytes: int = Field(default=25 * 1024 * 1024, gt=0)
     pdf_chunk_size: int = Field(default=1200, ge=100)
     pdf_chunk_overlap: int = Field(default=200, ge=0)
+    website_max_pages: int = Field(default=20, ge=1, le=100)
+    website_max_response_bytes: int = Field(default=5 * 1024 * 1024, gt=0)
+    website_request_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
+    website_max_redirects: int = Field(default=5, ge=0, le=10)
+    website_crawl_delay_seconds: float = Field(default=0.25, ge=0, le=10)
+    website_user_agent: str = Field(default="EnterpriseKnowledgeFusionRAG/0.1", min_length=1)
+    website_chunk_size: int = Field(default=1200, ge=100)
+    website_chunk_overlap: int = Field(default=200, ge=0)
 
 
 @lru_cache

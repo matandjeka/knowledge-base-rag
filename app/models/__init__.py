@@ -2,10 +2,18 @@
 
 from app.models.documents import Evidence, NormalizedDocument, RawDocument
 from app.models.health import HealthResponse
-from app.models.ingestion import PdfIngestionResult
+from app.models.ingestion import (
+    CrawlFailure,
+    CrawlManifest,
+    PdfIngestionResult,
+    WebsiteIngestionRequest,
+    WebsiteIngestionResult,
+)
 from app.models.sources import Source, SourceConfig, SourceStatus, SourceType, SourceUpdate
 
 __all__ = [
+    "CrawlFailure",
+    "CrawlManifest",
     "Evidence",
     "HealthResponse",
     "NormalizedDocument",
@@ -16,4 +24,6 @@ __all__ = [
     "SourceStatus",
     "SourceType",
     "SourceUpdate",
+    "WebsiteIngestionRequest",
+    "WebsiteIngestionResult",
 ]
