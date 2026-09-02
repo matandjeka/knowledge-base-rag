@@ -1,9 +1,15 @@
 # Advanced Multi-Source Enterprise RAG — Progress Tracker
 
 ## Overall Status
-**Last Completed Phase:** Phase 3 — Website Ingestion
+**Last Completed Implementation Phase:** Phase 4 — CSV Ingestion
 
-**Next Phase:** Phase 4 — CSV Ingestion (ready to architect)
+**Next Phase:** Phase 5 — Baseline Vector RAG (ready to architect)
+
+**Last Phase With All Exit Criteria Satisfied:** Phase 1 — Canonical Source Model
+
+Phases 2–4 have complete ingestion pipelines, but their build-plan exit criteria also
+require retrieval and rendered citations. Those portions remain deferred to Phase 5
+(Baseline Vector RAG) and Phase 13 (Advanced Citation Engine).
 
 ## Status Legend
 - [ ] Not started
@@ -42,9 +48,14 @@
 - [x] PDF parsing
 - [x] Page metadata
 - [x] Chunking
-- [x] Indexing
-- [x] Page citations
+- [~] Indexing — normalized chunks persist; vector indexing is deferred to Phase 5
+- [~] Page citations — page locators persist; rendered citations are deferred to Phase 13
 - [x] PDF ingestion tests
+
+**Implementation status:** Complete
+
+**Exit criteria:** Partial — upload, parsing, chunk persistence, and page locators work;
+retrieval and cited answers are not implemented yet.
 
 ## 4. Website Source
 - [x] URL validation
@@ -53,17 +64,27 @@
 - [x] Same-domain option
 - [x] Text cleaning
 - [x] URL metadata
-- [x] Indexing
-- [x] Website citation tests
+- [~] Indexing — normalized chunks persist; vector indexing is deferred to Phase 5
+- [~] Website citation tests — URL locators are tested; rendered citations await Phase 13
+
+**Implementation status:** Complete
+
+**Exit criteria:** Partial — URL submission, bounded crawling, extraction, chunk persistence,
+and URL locators work; question answering and cited answers are not implemented yet.
 
 ## 5. CSV Source
-- [ ] CSV uploader
-- [ ] Schema preview
-- [ ] Text-column selection
-- [ ] Metadata-column selection
-- [ ] Row normalization
-- [ ] Indexing
-- [ ] Row citations
+- [x] CSV uploader
+- [x] Schema preview
+- [x] Text-column selection
+- [x] Metadata-column selection
+- [x] Row normalization
+- [~] Indexing — normalized row documents persist; vector indexing is deferred to Phase 5
+- [~] Row citations — stable row locators persist; rendered citations are deferred to Phase 13
+
+**Implementation status:** Complete
+
+**Exit criteria:** Partial — upload, preview, column selection, row-document persistence,
+and stable row locators work; retrieval and cited answers are not implemented yet.
 
 ## 6. Database Source
 - [ ] SQLAlchemy adapter
@@ -231,6 +252,9 @@
 PDF + website + CSV + vector retrieval + citations.
 
 Status: [ ]
+
+Current dependencies: vector retrieval and grounded generation (Phase 5), and rendered
+citations (Phase 13).
 
 ### Milestone B — Advanced Retrieval
 Sentence windows + graph + BM25 + fusion + re-ranking.

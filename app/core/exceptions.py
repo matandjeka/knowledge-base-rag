@@ -17,6 +17,10 @@ class WebsiteValidationError(IngestionError):
     """Raised when a website cannot be crawled safely or yields no usable content."""
 
 
+class CsvValidationError(IngestionError):
+    """Raised when an uploaded CSV or its ingestion configuration is invalid."""
+
+
 class ParsingError(ApplicationError):
     """Raised when source parsing or normalization fails."""
 

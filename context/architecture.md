@@ -83,6 +83,7 @@ FastAPI exposes:
 
 - `POST /sources/pdf`
 - `POST /sources/website`
+- `POST /sources/csv/preview`
 - `POST /sources/csv`
 - `POST /sources/database`
 - `POST /sources/{source_id}/index`

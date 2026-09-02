@@ -3,6 +3,8 @@
 from functools import lru_cache
 
 from app.core.config import get_settings
+from app.ingestion.csv import CsvConnector
+from app.ingestion.csv_service import CsvIngestionService
 from app.ingestion.pdf import PdfConnector
 from app.ingestion.service import PdfIngestionService
 from app.ingestion.website import SafeHttpFetcher, WebsiteCrawler
@@ -33,6 +35,23 @@ def get_pdf_ingestion_service() -> PdfIngestionService:
         connector=PdfConnector(settings.max_pdf_size_bytes),
         chunk_size=settings.pdf_chunk_size,
         chunk_overlap=settings.pdf_chunk_overlap,
+    )
+
+
+@lru_cache
+def get_csv_ingestion_service() -> CsvIngestionService:
+    """Return the configured CSV ingestion orchestrator."""
+    settings = get_settings()
+    return CsvIngestionService(
+        repository=get_source_repository(),
+        storage=get_source_storage(),
+        connector=CsvConnector(
+            max_size_bytes=settings.max_csv_size_bytes,
+            max_rows=settings.csv_max_rows,
+            max_columns=settings.csv_max_columns,
+            max_field_characters=settings.csv_max_field_characters,
+            preview_rows=settings.csv_preview_rows,
+        ),
     )
 
 

@@ -5,6 +5,10 @@ from app.models.health import HealthResponse
 from app.models.ingestion import (
     CrawlFailure,
     CrawlManifest,
+    CsvColumnPreview,
+    CsvColumnType,
+    CsvIngestionResult,
+    CsvPreviewResult,
     PdfIngestionResult,
     WebsiteIngestionRequest,
     WebsiteIngestionResult,
@@ -14,6 +18,10 @@ from app.models.sources import Source, SourceConfig, SourceStatus, SourceType, S
 __all__ = [
     "CrawlFailure",
     "CrawlManifest",
+    "CsvColumnPreview",
+    "CsvColumnType",
+    "CsvIngestionResult",
+    "CsvPreviewResult",
     "Evidence",
     "HealthResponse",
     "NormalizedDocument",

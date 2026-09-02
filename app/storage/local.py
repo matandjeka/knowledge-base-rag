@@ -16,8 +16,15 @@ _DOCUMENTS_ADAPTER = TypeAdapter(list[NormalizedDocument])
 class SourceStorage(Protocol):
     """Persistence boundary for original files and normalized documents."""
 
-    async def save_original(self, workspace_id: str, source_id: UUID, data: bytes) -> str:
-        """Persist an original PDF and return its backend-neutral locator."""
+    async def save_original(
+        self,
+        workspace_id: str,
+        source_id: UUID,
+        data: bytes,
+        *,
+        filename: str = "original.pdf",
+    ) -> str:
+        """Persist an original source file and return its backend-neutral locator."""
         ...
 
     async def save_source(self, source: Source) -> None:
@@ -49,10 +56,19 @@ class LocalSourceStorage:
     def __init__(self, root: Path) -> None:
         self._root = root.resolve()
 
-    async def save_original(self, workspace_id: str, source_id: UUID, data: bytes) -> str:
-        """Atomically persist an original PDF."""
+    async def save_original(
+        self,
+        workspace_id: str,
+        source_id: UUID,
+        data: bytes,
+        *,
+        filename: str = "original.pdf",
+    ) -> str:
+        """Atomically persist an original source file."""
+        if Path(filename).name != filename or filename not in {"original.pdf", "original.csv"}:
+            raise ValueError("Original artifact filename is not allowed")
         directory = self._source_directory(workspace_id, source_id)
-        path = directory / "original.pdf"
+        path = directory / filename
         await asyncio.to_thread(self._write_bytes, path, data)
         working_directory = Path.cwd().resolve()
         return (

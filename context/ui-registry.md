@@ -73,10 +73,30 @@ an explicit primary action, disable conditional controls until relevant, and fin
 with measurable ready/failed status. Do not imply that persisted chunks have vector embeddings.
 
 ### `CsvUploader`
+File: `ui/streamlit_app.py`
+Last updated: 2026-09-01
+
 Inputs:
 - file
 - text columns
 - metadata columns
+- optional row-ID column
+
+| Property | Streamlit pattern |
+| --- | --- |
+| Container | `st.sidebar` source-management panel, separated with `st.divider` |
+| Upload | Labeled `st.file_uploader`, CSV constrained |
+| Preview action | Full-width secondary `st.button` before configuration controls appear |
+| Schema | Compact `st.dataframe` with column name and inferred type |
+| Sample | Collapsed `st.expander` containing a bounded `st.dataframe` |
+| Selection | Labeled `st.multiselect` controls and one `st.selectbox` for row identity |
+| Primary action | `st.button(type="primary", use_container_width=True)`, disabled without text columns |
+| Feedback | `st.status` with row/document/skipped counts, followed by `st.success` or `st.error` |
+
+**Pattern notes:** Multi-step source forms reveal configuration only after validated preview.
+Tie preview state to an upload digest so a replacement file cannot reuse stale schema. Keep
+samples collapsed in the narrow sidebar, disable ingestion until required selections exist,
+and report persisted row documents without implying vector indexing.
 
 ### `DatabaseConnectionForm`
 Inputs:
