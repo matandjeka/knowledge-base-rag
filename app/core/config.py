@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -36,6 +36,38 @@ class Settings(BaseSettings):
     csv_max_columns: int = Field(default=200, ge=1)
     csv_max_field_characters: int = Field(default=100_000, ge=1)
     csv_preview_rows: int = Field(default=10, ge=1, le=100)
+    embedding_model_name: str = "BAAI/bge-small-en-v1.5"
+    embedding_dimension: int = Field(default=384, ge=1)
+    embedding_batch_size: int = Field(default=32, ge=1, le=512)
+    embedding_query_prefix: str = "Represent this sentence for searching relevant passages: "
+    retrieval_top_k: int = Field(default=5, ge=1, le=20)
+    retrieval_max_top_k: int = Field(default=20, ge=1, le=20)
+    retrieval_min_similarity: float = Field(default=0.70, ge=-1, le=1)
+    vector_store_backend: Literal["faiss", "pinecone"] = "faiss"
+    pinecone_api_key: SecretStr | None = None
+    pinecone_index_name: str | None = Field(default=None, min_length=1)
+    pinecone_index_host: str | None = Field(default=None, min_length=1)
+    pinecone_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
+    pinecone_upsert_batch_size: int = Field(default=100, ge=1, le=1000)
+    pinecone_consistency_retries: int = Field(default=5, ge=1, le=20)
+    pinecone_consistency_delay_seconds: float = Field(default=0.25, ge=0, le=5)
+
+    @model_validator(mode="after")
+    def validate_vector_store_configuration(self) -> "Settings":
+        """Require cloud credentials only when Pinecone is selected."""
+        if self.vector_store_backend == "pinecone":
+            missing = [
+                name
+                for name, value in (
+                    ("PINECONE_API_KEY", self.pinecone_api_key),
+                    ("PINECONE_INDEX_NAME", self.pinecone_index_name),
+                    ("PINECONE_INDEX_HOST", self.pinecone_index_host),
+                )
+                if value is None
+            ]
+            if missing:
+                raise ValueError("Pinecone configuration is incomplete: " + ", ".join(missing))
+        return self
 
 
 @lru_cache

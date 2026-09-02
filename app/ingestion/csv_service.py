@@ -18,6 +18,7 @@ from app.models import (
     SourceUpdate,
 )
 from app.repositories import SourceRepository
+from app.retrieval.indexing import SourceIndexer
 from app.storage import SourceStorage
 
 logger = logging.getLogger(__name__)
@@ -31,10 +32,12 @@ class CsvIngestionService:
         repository: SourceRepository,
         storage: SourceStorage,
         connector: CsvConnector,
+        indexer: SourceIndexer,
     ) -> None:
         self._repository = repository
         self._storage = storage
         self._connector = connector
+        self._indexer = indexer
 
     async def preview(
         self, filename: str, content_type: str | None, data: bytes
@@ -108,6 +111,7 @@ class CsvIngestionService:
                     )
                 ),
             )
+            generation = await self._indexer.prepare(workspace_id, source.source_id)
             ready_at = datetime.now(UTC)
             ready_source = source.model_copy(
                 update={"status": SourceStatus.READY, "updated_at": ready_at}, deep=True
@@ -119,6 +123,7 @@ class CsvIngestionService:
                 SourceStatus.READY,
                 transitioned_at=ready_at,
             )
+            await self._indexer.activate(workspace_id, generation.generation_id)
         except Exception as error:
             try:
                 failed = await self._repository.transition(

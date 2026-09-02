@@ -29,6 +29,10 @@ class IndexingError(ApplicationError):
     """Raised when index creation or persistence fails."""
 
 
+class IndexNotFoundError(IndexingError):
+    """Raised when a workspace has no persisted vector index."""
+
+
 class RetrievalError(ApplicationError):
     """Raised when evidence retrieval fails."""
 

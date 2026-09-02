@@ -16,7 +16,7 @@ from app.models import Source, SourceStatus, SourceUpdate
 _ALLOWED_TRANSITIONS: dict[SourceStatus, frozenset[SourceStatus]] = {
     SourceStatus.REGISTERED: frozenset({SourceStatus.INDEXING, SourceStatus.FAILED}),
     SourceStatus.INDEXING: frozenset({SourceStatus.READY, SourceStatus.FAILED}),
-    SourceStatus.READY: frozenset(),
+    SourceStatus.READY: frozenset({SourceStatus.FAILED}),
     SourceStatus.FAILED: frozenset({SourceStatus.INDEXING}),
 }
 

@@ -10,11 +10,13 @@ from app.api.dependencies import (
     get_pdf_ingestion_service,
     get_source_repository,
     get_source_storage,
+    get_vector_indexing_service,
     get_website_ingestion_service,
 )
 from app.core.config import get_settings
 from app.core.exceptions import (
     CsvValidationError,
+    IndexingError,
     IngestionError,
     PdfValidationError,
     SourceNotFoundError,
@@ -29,10 +31,12 @@ from app.models import (
     NormalizedDocument,
     PdfIngestionResult,
     Source,
+    SourceIndexResult,
     WebsiteIngestionRequest,
     WebsiteIngestionResult,
 )
 from app.repositories import InMemorySourceRepository
+from app.retrieval.indexing import VectorIndexingService
 from app.storage import LocalSourceStorage
 
 router = APIRouter(prefix="/sources", tags=["sources"])
@@ -159,6 +163,33 @@ async def list_sources(
 ) -> list[Source]:
     """List source metadata within one workspace."""
     return list(await repository.list(workspace_id))
+
+
+@router.post("/{source_id}/index", response_model=SourceIndexResult)
+async def index_source(
+    source_id: UUID,
+    workspace_id: WorkspaceQuery,
+    repository: Annotated[InMemorySourceRepository, Depends(get_source_repository)],
+    indexer: Annotated[VectorIndexingService, Depends(get_vector_indexing_service)],
+) -> SourceIndexResult:
+    """Explicitly rebuild the vector index for a source's workspace."""
+    try:
+        await repository.get(workspace_id, source_id)
+        metadata = await indexer.rebuild(workspace_id, source_id)
+    except SourceNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Source not found"
+        ) from error
+    except IndexingError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(error)
+        ) from error
+    return SourceIndexResult(
+        workspace_id=workspace_id,
+        source_id=source_id,
+        document_count=metadata.document_count,
+        generation_id=metadata.generation_id,
+    )
 
 
 @router.get("/{source_id}/documents", response_model=list[NormalizedDocument])

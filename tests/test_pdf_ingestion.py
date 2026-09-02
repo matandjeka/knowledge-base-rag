@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Any, cast
+from uuid import UUID
 
 import pymupdf
 import pytest
@@ -19,6 +20,7 @@ from app.main import app
 from app.models import Source, SourceStatus
 from app.repositories import InMemorySourceRepository
 from app.storage import LocalSourceStorage
+from tests.fakes import RecordingSourceIndexer
 
 
 class _FailingReadyStorage(LocalSourceStorage):
@@ -31,6 +33,12 @@ class _FailingReadyStorage(LocalSourceStorage):
 class _UnavailableMetadataStorage(LocalSourceStorage):
     async def save_source(self, source: Source) -> None:
         raise OSError("metadata unavailable")
+
+
+class _FailingActivationIndexer(RecordingSourceIndexer):
+    async def activate(self, workspace_id: str, generation_id: UUID) -> None:
+        del workspace_id, generation_id
+        raise OSError("index activation unavailable")
 
 
 def _pdf_bytes(*pages: str, title: str = "Employee Handbook") -> bytes:
@@ -59,6 +67,7 @@ def _service(
         connector=PdfConnector(max_size_bytes=1024 * 1024),
         chunk_size=80,
         chunk_overlap=10,
+        indexer=RecordingSourceIndexer(),
     )
     return service, repository, storage
 
@@ -151,6 +160,7 @@ async def test_ready_metadata_failure_leaves_source_failed(tmp_path: Path) -> No
         connector=PdfConnector(max_size_bytes=1024 * 1024),
         chunk_size=80,
         chunk_overlap=10,
+        indexer=RecordingSourceIndexer(),
     )
 
     with pytest.raises(IngestionError):
@@ -177,6 +187,32 @@ async def test_ready_metadata_failure_leaves_source_failed(tmp_path: Path) -> No
 
 
 @pytest.mark.asyncio
+async def test_index_activation_failure_rolls_ready_source_back_to_failed(tmp_path: Path) -> None:
+    repository = InMemorySourceRepository()
+    storage = LocalSourceStorage(tmp_path / "data")
+    service = PdfIngestionService(
+        repository=repository,
+        storage=storage,
+        connector=PdfConnector(max_size_bytes=1024 * 1024),
+        chunk_size=80,
+        chunk_overlap=10,
+        indexer=_FailingActivationIndexer(),
+    )
+
+    with pytest.raises(IngestionError):
+        await service.ingest(
+            "workspace-a",
+            "policy.pdf",
+            "application/pdf",
+            _pdf_bytes("Policy text"),
+        )
+
+    sources = await repository.list("workspace-a")
+    assert len(sources) == 1
+    assert sources[0].status is SourceStatus.FAILED
+
+
+@pytest.mark.asyncio
 async def test_failure_state_persistence_error_is_not_suppressed(tmp_path: Path) -> None:
     repository = InMemorySourceRepository()
     storage = _UnavailableMetadataStorage(tmp_path / "data")
@@ -186,6 +222,7 @@ async def test_failure_state_persistence_error_is_not_suppressed(tmp_path: Path)
         connector=PdfConnector(max_size_bytes=1024 * 1024),
         chunk_size=80,
         chunk_overlap=10,
+        indexer=RecordingSourceIndexer(),
     )
 
     with pytest.raises(IngestionError, match="failure-state persistence failed"):
