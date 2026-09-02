@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import TypeAdapter
 
-from app.models import NormalizedDocument, Source
+from app.models import CrawlManifest, NormalizedDocument, Source
 
 _DOCUMENTS_ADAPTER = TypeAdapter(list[NormalizedDocument])
 
@@ -34,6 +34,12 @@ class SourceStorage(Protocol):
         self, workspace_id: str, source_id: UUID
     ) -> tuple[NormalizedDocument, ...]:
         """Load normalized documents for inspection."""
+        ...
+
+    async def save_crawl_manifest(
+        self, workspace_id: str, source_id: UUID, manifest: CrawlManifest
+    ) -> None:
+        """Persist website crawl diagnostics."""
         ...
 
 
@@ -77,6 +83,14 @@ class LocalSourceStorage:
         text = await asyncio.to_thread(path.read_text)
         payloads = [line for line in text.splitlines() if line]
         return tuple(_DOCUMENTS_ADAPTER.validate_json(f"[{','.join(payloads)}]"))
+
+    async def save_crawl_manifest(
+        self, workspace_id: str, source_id: UUID, manifest: CrawlManifest
+    ) -> None:
+        """Atomically persist website crawl diagnostics as JSON."""
+        path = self._source_directory(workspace_id, source_id) / "crawl-manifest.json"
+        payload = manifest.model_dump_json(indent=2).encode()
+        await asyncio.to_thread(self._write_bytes, path, payload)
 
     def _source_directory(self, workspace_id: str, source_id: UUID) -> Path:
         if not workspace_id or any(

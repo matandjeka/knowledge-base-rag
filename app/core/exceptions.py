@@ -13,6 +13,10 @@ class PdfValidationError(IngestionError):
     """Raised when an uploaded file is not an acceptable, extractable PDF."""
 
 
+class WebsiteValidationError(IngestionError):
+    """Raised when a website cannot be crawled safely or yields no usable content."""
+
+
 class ParsingError(ApplicationError):
     """Raised when source parsing or normalization fails."""
 

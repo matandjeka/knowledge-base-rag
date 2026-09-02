@@ -82,7 +82,7 @@ Responsibilities:
 FastAPI exposes:
 
 - `POST /sources/pdf`
-- `POST /sources/web`
+- `POST /sources/website`
 - `POST /sources/csv`
 - `POST /sources/database`
 - `POST /sources/{source_id}/index`

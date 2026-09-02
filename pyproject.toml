@@ -16,6 +16,7 @@ dependencies = [
     "pydantic-settings>=2.10,<3",
     "python-multipart>=0.0.20,<1",
     "streamlit>=1.48,<2",
+    "trafilatura>=2.0,<3",
     "uvicorn[standard]>=0.35,<1",
 ]
 
@@ -58,6 +59,6 @@ plugins = ["pydantic.mypy"]
 files = ["app", "ui", "tests"]
 
 [[tool.mypy.overrides]]
-module = "streamlit.*"
+module = ["streamlit.*", "trafilatura.*"]
 ignore_missing_imports = true
 follow_imports = "skip"

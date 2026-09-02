@@ -1,9 +1,9 @@
 # Advanced Multi-Source Enterprise RAG — Progress Tracker
 
 ## Overall Status
-**Last Completed Phase:** Phase 2 — PDF Ingestion
+**Last Completed Phase:** Phase 3 — Website Ingestion
 
-**Next Phase:** Phase 3 — Website Ingestion (ready to start)
+**Next Phase:** Phase 4 — CSV Ingestion (ready to architect)
 
 ## Status Legend
 - [ ] Not started
@@ -47,14 +47,14 @@
 - [x] PDF ingestion tests
 
 ## 4. Website Source
-- [ ] URL validation
-- [ ] Crawler
-- [ ] Crawl limits
-- [ ] Same-domain option
-- [ ] Text cleaning
-- [ ] URL metadata
-- [ ] Indexing
-- [ ] Website citation tests
+- [x] URL validation
+- [x] Crawler
+- [x] Crawl limits
+- [x] Same-domain option
+- [x] Text cleaning
+- [x] URL metadata
+- [x] Indexing
+- [x] Website citation tests
 
 ## 5. CSV Source
 - [ ] CSV uploader
@@ -131,7 +131,7 @@
 ## 14. Citations
 - [ ] Stable citation IDs
 - [x] PDF locator
-- [ ] Website locator
+- [x] Website locator
 - [ ] CSV locator
 - [ ] Database locator
 - [ ] Inline citation renderer
@@ -150,7 +150,7 @@
 - [x] Sidebar
 - [ ] Source manager
 - [x] PDF upload
-- [ ] Website form
+- [x] Website form
 - [ ] CSV upload
 - [ ] DB form
 - [ ] Chat
@@ -186,7 +186,7 @@
 - [ ] Source authorization
 - [ ] Retrieval metadata filters
 - [x] File validation
-- [ ] Crawl allowlist
+- [x] Crawl allowlist
 - [ ] Secret management
 - [ ] SQL read-only enforcement
 - [ ] Prompt injection mitigation

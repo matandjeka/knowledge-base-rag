@@ -9,11 +9,24 @@ from app.api.dependencies import (
     get_pdf_ingestion_service,
     get_source_repository,
     get_source_storage,
+    get_website_ingestion_service,
 )
 from app.core.config import get_settings
-from app.core.exceptions import IngestionError, PdfValidationError, SourceNotFoundError
+from app.core.exceptions import (
+    IngestionError,
+    PdfValidationError,
+    SourceNotFoundError,
+    WebsiteValidationError,
+)
 from app.ingestion.service import PdfIngestionService
-from app.models import NormalizedDocument, PdfIngestionResult, Source
+from app.ingestion.website_service import WebsiteIngestionService
+from app.models import (
+    NormalizedDocument,
+    PdfIngestionResult,
+    Source,
+    WebsiteIngestionRequest,
+    WebsiteIngestionResult,
+)
 from app.repositories import InMemorySourceRepository
 from app.storage import LocalSourceStorage
 
@@ -52,6 +65,29 @@ async def upload_pdf(
             data=data,
         )
     except PdfValidationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
+        ) from error
+    except IngestionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(error)
+        ) from error
+
+
+@router.post("/website", response_model=WebsiteIngestionResult, status_code=status.HTTP_201_CREATED)
+async def add_website(
+    request: WebsiteIngestionRequest,
+    service: Annotated[WebsiteIngestionService, Depends(get_website_ingestion_service)],
+) -> WebsiteIngestionResult:
+    """Validate, crawl, extract, chunk, and register one website."""
+    try:
+        return await service.ingest(
+            request.workspace_id,
+            request.url,
+            crawl_same_domain=request.crawl_same_domain,
+            page_limit=request.page_limit,
+        )
+    except WebsiteValidationError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
         ) from error

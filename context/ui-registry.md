@@ -51,11 +51,26 @@ Outputs:
 **Pattern notes:** Keep source upload controls in the sidebar. Require an explicit primary action after file selection, state limits in help text, and never display stack traces.
 
 ### `WebsiteSourceForm`
+File: `ui/streamlit_app.py`
+Last updated: 2026-09-01
+
 Inputs:
 - URL
 - max pages
-- include patterns
-- exclude patterns
+- same-domain crawl toggle
+
+| Property | Streamlit pattern |
+| --- | --- |
+| Container | `st.sidebar` source-management panel, separated with `st.divider` |
+| Inputs | Labeled `st.text_input`, `st.checkbox`, and bounded `st.number_input` |
+| Primary action | `st.button(type="primary", use_container_width=True)` |
+| Supporting text | Input `help` text for public-network, robots, and rendering boundaries |
+| Success feedback | `st.success` with indexed page/chunk totals in `st.status` |
+| Error feedback | `st.error` with actionable API-safe detail |
+
+**Pattern notes:** Match the PDF source flow: keep source controls in the sidebar, require
+an explicit primary action, disable conditional controls until relevant, and finish ingestion
+with measurable ready/failed status. Do not imply that persisted chunks have vector embeddings.
 
 ### `CsvUploader`
 Inputs:

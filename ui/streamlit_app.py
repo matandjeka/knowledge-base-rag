@@ -46,6 +46,52 @@ with st.sidebar:
                 ingestion_status.update(label="API unavailable", state="error")
                 st.error("Could not reach the ingestion API. Retry after the API is running.")
 
+    st.divider()
+    website_url = st.text_input(
+        "Website URL",
+        placeholder="https://docs.example.com/",
+        help="Public HTTP(S) pages only. JavaScript-rendered content is not supported yet.",
+    )
+    crawl_same_domain = st.checkbox(
+        "Crawl same-domain links",
+        help="Follows links on the exact same hostname while respecting robots.txt.",
+    )
+    page_limit = st.number_input(
+        "Page limit",
+        min_value=1,
+        max_value=settings.website_max_pages,
+        value=min(20, settings.website_max_pages),
+        disabled=not crawl_same_domain,
+    )
+    if website_url and st.button("Add website", type="primary", use_container_width=True):
+        with st.status("Crawling website…", expanded=True) as ingestion_status:
+            try:
+                response = httpx.post(
+                    f"{settings.api_base_url}/sources/website",
+                    json={
+                        "workspace_id": workspace_id,
+                        "url": website_url,
+                        "crawl_same_domain": crawl_same_domain,
+                        "page_limit": int(page_limit) if crawl_same_domain else 1,
+                    },
+                    timeout=120,
+                )
+                response.raise_for_status()
+                result = response.json()
+                ingestion_status.write(f"Indexed {result['page_count']} page(s)")
+                ingestion_status.write(f"Created {result['chunk_count']} chunk(s)")
+                if result["skipped_count"]:
+                    ingestion_status.write(f"Skipped {result['skipped_count']} page(s)")
+                ingestion_status.update(label="Website ready", state="complete", expanded=False)
+                st.success(f"Added {result['source']['name']}")
+            except httpx.HTTPStatusError as error:
+                detail = error.response.json().get("detail", "The API rejected the website")
+                ingestion_status.update(label="Website ingestion failed", state="error")
+                st.error(str(detail))
+            except httpx.RequestError:
+                ingestion_status.update(label="API unavailable", state="error")
+                st.error("Could not reach the ingestion API. Retry after the API is running.")
+
 st.subheader("Ask your knowledge base")
 st.chat_input("Add and index a source before asking a question", disabled=True)
 st.info("The project foundation is ready. Retrieval capabilities are coming next.")
