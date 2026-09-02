@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 
 from app.api.dependencies import (
+    get_csv_ingestion_service,
     get_pdf_ingestion_service,
     get_source_repository,
     get_source_storage,
@@ -13,14 +14,18 @@ from app.api.dependencies import (
 )
 from app.core.config import get_settings
 from app.core.exceptions import (
+    CsvValidationError,
     IngestionError,
     PdfValidationError,
     SourceNotFoundError,
     WebsiteValidationError,
 )
+from app.ingestion.csv_service import CsvIngestionService
 from app.ingestion.service import PdfIngestionService
 from app.ingestion.website_service import WebsiteIngestionService
 from app.models import (
+    CsvIngestionResult,
+    CsvPreviewResult,
     NormalizedDocument,
     PdfIngestionResult,
     Source,
@@ -88,6 +93,56 @@ async def add_website(
             page_limit=request.page_limit,
         )
     except WebsiteValidationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
+        ) from error
+    except IngestionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(error)
+        ) from error
+
+
+@router.post("/csv/preview", response_model=CsvPreviewResult)
+async def preview_csv(
+    file: Annotated[UploadFile, File(description="CSV knowledge source")],
+    service: Annotated[CsvIngestionService, Depends(get_csv_ingestion_service)],
+) -> CsvPreviewResult:
+    """Validate a CSV upload and return its schema and bounded sample."""
+    settings = get_settings()
+    data = await file.read(settings.max_csv_size_bytes + 1)
+    await file.close()
+    try:
+        return await service.preview(file.filename or "", file.content_type, data)
+    except CsvValidationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
+        ) from error
+
+
+@router.post("/csv", response_model=CsvIngestionResult, status_code=status.HTTP_201_CREATED)
+async def upload_csv(
+    workspace_id: WorkspaceForm,
+    file: Annotated[UploadFile, File(description="CSV knowledge source")],
+    text_columns: Annotated[list[str], Form()],
+    service: Annotated[CsvIngestionService, Depends(get_csv_ingestion_service)],
+    metadata_columns: Annotated[list[str] | None, Form()] = None,
+    row_id_column: Annotated[str | None, Form()] = None,
+) -> CsvIngestionResult:
+    """Validate, normalize, persist, and register one CSV."""
+    settings = get_settings()
+    data = await file.read(settings.max_csv_size_bytes + 1)
+    await file.close()
+    try:
+        return await service.ingest(
+            workspace_id,
+            file.filename or "",
+            file.content_type,
+            data,
+            text_columns=text_columns,
+            metadata_columns=metadata_columns or [],
+            row_id_column=row_id_column,
+        )
+    except CsvValidationError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
         ) from error

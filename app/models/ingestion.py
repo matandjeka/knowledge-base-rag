@@ -1,5 +1,7 @@
 """Contracts returned by source-ingestion workflows."""
 
+from enum import StrEnum
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.sources import Source
@@ -54,4 +56,46 @@ class WebsiteIngestionResult(BaseModel):
     source: Source
     page_count: int = Field(ge=1)
     chunk_count: int = Field(ge=1)
+    skipped_count: int = Field(ge=0)
+
+
+class CsvColumnType(StrEnum):
+    """Conservative display types inferred for CSV preview columns."""
+
+    BOOLEAN = "boolean"
+    INTEGER = "integer"
+    DECIMAL = "decimal"
+    DATE = "date"
+    DATETIME = "datetime"
+    TEXT = "text"
+
+
+class CsvColumnPreview(BaseModel):
+    """One validated CSV column and its preview-only inferred type."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1)
+    inferred_type: CsvColumnType
+
+
+class CsvPreviewResult(BaseModel):
+    """Validated schema and bounded sample returned before CSV ingestion."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    filename: str = Field(min_length=1)
+    row_count: int = Field(ge=1)
+    columns: list[CsvColumnPreview] = Field(min_length=1)
+    sample_rows: list[dict[str, str | None]]
+
+
+class CsvIngestionResult(BaseModel):
+    """Summary of a completed CSV ingestion operation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: Source
+    row_count: int = Field(ge=1)
+    document_count: int = Field(ge=1)
     skipped_count: int = Field(ge=0)

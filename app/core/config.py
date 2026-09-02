@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     website_user_agent: str = Field(default="EnterpriseKnowledgeFusionRAG/0.1", min_length=1)
     website_chunk_size: int = Field(default=1200, ge=100)
     website_chunk_overlap: int = Field(default=200, ge=0)
+    max_csv_size_bytes: int = Field(default=25 * 1024 * 1024, gt=0)
+    csv_max_rows: int = Field(default=100_000, ge=1)
+    csv_max_columns: int = Field(default=200, ge=1)
+    csv_max_field_characters: int = Field(default=100_000, ge=1)
+    csv_preview_rows: int = Field(default=10, ge=1, le=100)
 
 
 @lru_cache
