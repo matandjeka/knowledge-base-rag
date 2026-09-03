@@ -1,0 +1,7 @@
+[
+  {"anchor":"Project Atlas","middle":"Operations","target":"Policy HR-402","question":"What governs Project Atlas?","predicate":"GOVERNS"},
+  {"anchor":"Product Beacon","middle":"Platform Team","target":"Regulation EU-17","question":"What governs Product Beacon?","predicate":"GOVERNS"},
+  {"anchor":"Contract Cedar","middle":"Legal Department","target":"Policy Retention-9","question":"What governs Contract Cedar?","predicate":"GOVERNS"},
+  {"anchor":"Project Delta","middle":"Finance Department","target":"Policy Expense-10","question":"What governs Project Delta?","predicate":"GOVERNS"},
+  {"anchor":"Product Ember","middle":"Security Team","target":"Regulation SEC-8","question":"What governs Product Ember?","predicate":"GOVERNS"}
+]

@@ -1,7 +1,7 @@
 """Baseline retrieval, citation, and extractive-answer orchestration."""
 
 from app.citations.builder import build_citations
-from app.core.exceptions import RetrievalError
+from app.core.exceptions import GraphIndexNotFoundError, RetrievalError
 from app.generation.extractive import Generator
 from app.models import QueryRequest, QueryResponse, RetrievalMode
 from app.repositories import SourceRepository
@@ -21,6 +21,7 @@ class QueryService:
         default_top_k: int,
         max_top_k: int,
         min_similarity: float,
+        graph_retriever: Retriever | None = None,
     ) -> None:
         self._repository = repository
         self._retriever = retriever
@@ -29,6 +30,7 @@ class QueryService:
         self._default_top_k = default_top_k
         self._max_top_k = max_top_k
         self._min_similarity = min_similarity
+        self._graph_retriever = graph_retriever
 
     async def query(self, request: QueryRequest) -> QueryResponse:
         """Retrieve evidence and return citations or an insufficient-evidence response."""
@@ -37,11 +39,14 @@ class QueryService:
             raise RetrievalError(f"top_k cannot exceed {self._max_top_k}")
         for source_id in request.source_ids:
             await self._repository.get(request.workspace_id, source_id)
-        retriever = (
-            self._sentence_window_retriever
-            if request.retrieval_mode is RetrievalMode.SENTENCE_WINDOW
-            else self._retriever
-        )
+        if request.retrieval_mode is RetrievalMode.GRAPH:
+            if self._graph_retriever is None:
+                raise GraphIndexNotFoundError("Graph retrieval is not configured")
+            retriever = self._graph_retriever
+        elif request.retrieval_mode is RetrievalMode.SENTENCE_WINDOW:
+            retriever = self._sentence_window_retriever
+        else:
+            retriever = self._retriever
         evidence = await retriever.retrieve(
             request.workspace_id,
             request.question,

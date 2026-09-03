@@ -31,12 +31,12 @@ class ExtractiveGenerator:
         del question
         if not evidence:
             return INSUFFICIENT_EVIDENCE_ANSWER
-        passages = [
-            f"{item.content} [{citation.citation_id}]"
-            for item, citation in zip(
-                evidence[: self._max_passages],
-                citations[: self._max_passages],
-                strict=True,
+        passages = []
+        for item in evidence[: self._max_passages]:
+            markers = " ".join(
+                f"[{citation.citation_id}]"
+                for citation in citations
+                if citation.evidence_id == item.evidence_id
             )
-        ]
+            passages.append(f"{item.content} {markers}".rstrip())
         return "\n\n".join(passages)
