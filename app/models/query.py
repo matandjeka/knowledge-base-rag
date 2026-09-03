@@ -14,6 +14,7 @@ class RetrievalMode(StrEnum):
 
     VECTOR = "vector"
     SENTENCE_WINDOW = "sentence_window"
+    GRAPH = "graph"
 
 
 class QueryRequest(BaseModel):
@@ -34,6 +35,7 @@ class Citation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     citation_id: str = Field(pattern=r"^S[1-9][0-9]*$")
+    evidence_id: UUID
     source_id: UUID
     source_type: SourceType
     source_title: str | None = None

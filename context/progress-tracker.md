@@ -1,16 +1,16 @@
 # Advanced Multi-Source Enterprise RAG — Progress Tracker
 
 ## Overall Status
-**Last Completed Implementation Phase:** Phase 6 — Sentence-Window Retrieval
+**Last Completed Implementation Phase:** Phase 7 — Knowledge Graph Retrieval
 
-**Next Phase:** Phase 7 — Knowledge Graph Retrieval (ready to architect)
+**Next Phase:** Phase 8 — Optional BM25 / Lexical Retriever (ready to architect)
 
-**Last Phase With All Exit Criteria Satisfied:** Phase 6 — Sentence-Window Retrieval
+**Last Phase With All Exit Criteria Satisfied:** Phase 7 — Knowledge Graph Retrieval
 
-Phases 2–6 now provide ingestion, atomically activated baseline and sentence-window indexes
-for FAISS/Pinecone, independently selectable retrieval, grounded answers, and
-PDF/website/CSV citation locators. Advanced citation rendering and source inspection remain
-deferred to Phase 13.
+Phases 2–7 now provide ingestion, atomically activated baseline and sentence-window indexes
+for FAISS/Pinecone, OpenAI-assisted knowledge-graph extraction, durable local graph generations,
+independently selectable vector/window/graph retrieval, grounded answers, and multi-source
+provenance. Advanced citation rendering and source inspection remain deferred to Phase 13.
 
 ## Status Legend
 - [ ] Not started
@@ -113,16 +113,24 @@ deferred to Phase 13.
 
 **Exit criteria:** Complete — sentence-window retrieval can be selected independently for a
 query, expands focused matches within their normalized document boundaries, and preserves
-source-specific citation locators across FAISS and Pinecone.
+source-specific citation locators across FAISS and Pinecone. A committed three-case benchmark
+compares baseline and sentence-window hit rate, MRR, citation accuracy, context expansion, and
+latency on paragraph-specific questions.
 
 ## 9. Graph Retrieval
-- [ ] Graph schema
-- [ ] Entity extraction
-- [ ] Relationship extraction
-- [ ] Graph persistence
-- [ ] Graph retriever
-- [ ] Multi-hop test dataset
-- [ ] Graph-to-source citations
+- [x] Graph schema
+- [x] Entity extraction
+- [x] Relationship extraction
+- [x] Graph persistence
+- [x] Graph retriever
+- [x] Multi-hop test dataset
+- [x] Graph-to-source citations
+
+**Implementation status:** Complete
+
+**Exit criteria:** Complete — explicit graph indexing creates a validated, checksummed workspace
+generation, and deterministic two-hop retrieval answers the committed five-case benchmark with
+complete edge-level citations across PDF, website, and CSV provenance.
 
 ## 10. Lexical Retrieval
 - [ ] BM25 index
@@ -130,7 +138,7 @@ source-specific citation locators across FAISS and Pinecone.
 - [ ] Identifier query tests
 
 ## 11. Fusion
-- [ ] Common retriever interface
+- [x] Common retriever interface
 - [ ] Evidence normalization
 - [ ] De-duplication
 - [ ] Reciprocal Rank Fusion
@@ -162,6 +170,7 @@ source-specific citation locators across FAISS and Pinecone.
 - [ ] Inline citation renderer
 - [ ] Source inspector
 - [x] Baseline citation accuracy tests
+- [x] Graph edge-to-source citation mapping
 
 ## 15. Query Routing
 - [ ] Rules-based router
@@ -185,15 +194,15 @@ source-specific citation locators across FAISS and Pinecone.
 - [ ] Evaluation dashboard
 
 ## 17. Evaluation
-- [ ] Golden question set
-- [ ] Expected source labels
+- [~] Golden question set (eight focused Phase 6–7 cases; 30–50 case suite deferred)
+- [~] Expected source labels (implemented for focused sentence-window and graph benchmarks)
 - [ ] Recall@K
 - [ ] Precision@K
-- [ ] MRR
+- [x] MRR
 - [ ] NDCG
 - [ ] Faithfulness
-- [ ] Citation accuracy
-- [ ] Latency tracking
+- [x] Citation accuracy
+- [x] Latency tracking
 - [ ] Cost tracking
 
 ## 18. Observability

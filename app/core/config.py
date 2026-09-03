@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     pinecone_upsert_batch_size: int = Field(default=100, ge=1, le=1000)
     pinecone_consistency_retries: int = Field(default=5, ge=1, le=20)
     pinecone_consistency_delay_seconds: float = Field(default=0.25, ge=0, le=5)
+    openai_api_key: SecretStr | None = None
+    graph_extraction_model: str | None = Field(default=None, min_length=1)
+    graph_extraction_timeout_seconds: float = Field(default=60.0, gt=0, le=300)
+    graph_extraction_max_retries: int = Field(default=2, ge=0, le=10)
+    graph_extraction_batch_size: int = Field(default=8, ge=1, le=100)
+    graph_extraction_max_batch_characters: int = Field(default=20_000, ge=100)
+    graph_retrieval_max_hops: int = Field(default=2, ge=1, le=4)
 
     @model_validator(mode="after")
     def validate_vector_store_configuration(self) -> "Settings":

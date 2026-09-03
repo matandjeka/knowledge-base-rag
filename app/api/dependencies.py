@@ -3,7 +3,12 @@
 from functools import lru_cache
 
 from app.core.config import get_settings
+from app.core.exceptions import GraphConfigurationError
 from app.generation.extractive import ExtractiveGenerator
+from app.graph.indexing import GraphIndexingService
+from app.graph.openai_extractor import OpenAIGraphExtractor
+from app.graph.retrieval import GraphRetriever
+from app.graph.store import LocalGraphStore
 from app.ingestion.csv import CsvConnector
 from app.ingestion.csv_service import CsvIngestionService
 from app.ingestion.pdf import PdfConnector
@@ -66,6 +71,38 @@ def get_vector_store() -> FaissVectorStore | PineconeVectorStore:
         batch_size=settings.pinecone_upsert_batch_size,
         consistency_retries=settings.pinecone_consistency_retries,
         consistency_delay_seconds=settings.pinecone_consistency_delay_seconds,
+    )
+
+
+@lru_cache
+def get_graph_store() -> LocalGraphStore:
+    """Return the durable local graph store."""
+    settings = get_settings()
+    return LocalGraphStore(
+        settings.data_dir, expected_extractor_model=settings.graph_extraction_model
+    )
+
+
+@lru_cache
+def get_graph_indexing_service() -> GraphIndexingService:
+    """Return graph indexing only when its external extractor is configured."""
+    settings = get_settings()
+    if settings.openai_api_key is None or settings.graph_extraction_model is None:
+        raise GraphConfigurationError(
+            "OPENAI_API_KEY and GRAPH_EXTRACTION_MODEL are required for graph indexing"
+        )
+    extractor = OpenAIGraphExtractor(
+        api_key=settings.openai_api_key.get_secret_value(),
+        model_name=settings.graph_extraction_model,
+        timeout_seconds=settings.graph_extraction_timeout_seconds,
+        max_retries=settings.graph_extraction_max_retries,
+    )
+    return GraphIndexingService(
+        get_source_storage(),
+        extractor,
+        get_graph_store(),
+        batch_size=settings.graph_extraction_batch_size,
+        max_batch_characters=settings.graph_extraction_max_batch_characters,
     )
 
 
@@ -151,4 +188,7 @@ def get_query_service() -> QueryService:
         default_top_k=settings.retrieval_top_k,
         max_top_k=settings.retrieval_max_top_k,
         min_similarity=settings.retrieval_min_similarity,
+        graph_retriever=GraphRetriever(
+            get_graph_store(), max_hops=settings.graph_retrieval_max_hops
+        ),
     )

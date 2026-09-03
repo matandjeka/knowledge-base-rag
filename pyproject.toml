@@ -14,6 +14,7 @@ dependencies = [
     "faiss-cpu>=1.12,<2; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "httpx>=0.28,<1",
     "numpy>=1.26,<2",
+    "openai>=1.101,<3",
     "pymupdf>=1.26,<2",
     "pydantic>=2.11,<3",
     "pydantic-settings>=2.10,<3",
@@ -46,6 +47,9 @@ filterwarnings = [
     "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning",
     "ignore:builtin type SwigPyObject has no __module__ attribute:DeprecationWarning",
     "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
+]
+markers = [
+    "live_openai: opt-in graph extraction test that calls the configured OpenAI API",
 ]
 
 [tool.ruff]

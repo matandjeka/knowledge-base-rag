@@ -80,3 +80,48 @@ defaults to `2`. Changing it requires rebuilding the source index. Index generat
 before sentence-window support must also be rebuilt; the API reports a clear missing-index error
 until then. Windows never cross a normalized document boundary, so source citation locators remain
 unchanged.
+
+## Knowledge graph retrieval
+
+Graph indexing is optional and explicit. Configure an OpenAI model that supports structured
+outputs:
+
+```dotenv
+OPENAI_API_KEY=your-api-key
+GRAPH_EXTRACTION_MODEL=your-model-name
+```
+
+Graph extraction sends the normalized text of every ready source in the selected workspace to
+the configured OpenAI API. Confirm that this data flow complies with your organization’s privacy,
+residency, retention, and access-control requirements before enabling graph indexing. Credentials
+remain environment-only and are never written into graph artifacts.
+
+Then rebuild the complete graph for a workspace:
+
+```http
+POST /graph/index
+Content-Type: application/json
+
+{"workspace_id":"example-workspace"}
+```
+
+The rebuild reads every persisted ready source, extracts a controlled entity/relationship
+ontology, and atomically activates a checksummed local graph generation. Vector ingestion and
+queries do not require graph credentials.
+
+Select deterministic two-hop graph traversal per query:
+
+```json
+{
+  "workspace_id": "example-workspace",
+  "question": "Which policy governs Project Atlas?",
+  "retrieval_mode": "graph"
+}
+```
+
+Graph questions must name a known entity or alias. Automatic graph routing and LLM-based query
+planning remain deferred. Multi-source paths produce edge-level citations for every supporting
+PDF page, website URL, or CSV row.
+
+The normal test suite uses offline extractor doubles. A live extraction smoke test is available
+only when explicitly enabled with `RUN_LIVE_OPENAI_GRAPH_TEST=1` and valid graph settings.

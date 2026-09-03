@@ -1,6 +1,22 @@
 """Canonical application data models."""
 
 from app.models.documents import Evidence, NormalizedDocument, RawDocument
+from app.models.graph import (
+    BatchGraphExtraction,
+    DocumentGraphExtraction,
+    EntityType,
+    ExtractedEntity,
+    ExtractedRelationship,
+    GraphEntity,
+    GraphGenerationMetadata,
+    GraphIndexRequest,
+    GraphIndexResult,
+    GraphPathSupport,
+    GraphRelationship,
+    GraphSnapshot,
+    GraphSupport,
+    RelationshipType,
+)
 from app.models.health import HealthResponse
 from app.models.ingestion import (
     CrawlFailure,
@@ -17,6 +33,7 @@ from app.models.query import Citation, QueryRequest, QueryResponse, RetrievalMod
 from app.models.sources import Source, SourceConfig, SourceStatus, SourceType, SourceUpdate
 
 __all__ = [
+    "BatchGraphExtraction",
     "Citation",
     "CrawlFailure",
     "CrawlManifest",
@@ -24,13 +41,26 @@ __all__ = [
     "CsvColumnType",
     "CsvIngestionResult",
     "CsvPreviewResult",
+    "DocumentGraphExtraction",
+    "EntityType",
     "Evidence",
+    "ExtractedEntity",
+    "ExtractedRelationship",
+    "GraphEntity",
+    "GraphGenerationMetadata",
+    "GraphIndexRequest",
+    "GraphIndexResult",
+    "GraphPathSupport",
+    "GraphRelationship",
+    "GraphSnapshot",
+    "GraphSupport",
     "HealthResponse",
     "NormalizedDocument",
     "PdfIngestionResult",
     "QueryRequest",
     "QueryResponse",
     "RawDocument",
+    "RelationshipType",
     "RetrievalMode",
     "Source",
     "SourceConfig",

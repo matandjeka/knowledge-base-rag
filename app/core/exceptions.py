@@ -33,6 +33,14 @@ class IndexNotFoundError(IndexingError):
     """Raised when a workspace has no persisted vector index."""
 
 
+class GraphIndexNotFoundError(IndexNotFoundError):
+    """Raised when a workspace has no activated knowledge graph."""
+
+
+class GraphConfigurationError(IndexingError):
+    """Raised when graph extraction configuration is incomplete."""
+
+
 class RetrievalError(ApplicationError):
     """Raised when evidence retrieval fails."""
 
