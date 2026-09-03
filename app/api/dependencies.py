@@ -15,6 +15,7 @@ from app.retrieval.embedding import HuggingFaceEmbeddingService
 from app.retrieval.indexing import VectorIndexingService
 from app.retrieval.pinecone_store import PineconeVectorStore
 from app.retrieval.query_service import QueryService
+from app.retrieval.sentence_window import SentenceWindowRetriever
 from app.retrieval.vector import VectorRetriever
 from app.retrieval.vector_store import FaissVectorStore
 from app.storage import LocalSourceStorage
@@ -76,6 +77,7 @@ def get_vector_indexing_service() -> VectorIndexingService:
         get_source_storage(),
         get_embedding_service(),
         get_vector_store(),
+        sentence_window_radius=get_settings().sentence_window_radius,
     )
 
 
@@ -144,6 +146,7 @@ def get_query_service() -> QueryService:
     return QueryService(
         get_source_repository(),
         VectorRetriever(get_embedding_service(), get_vector_store()),
+        SentenceWindowRetriever(get_embedding_service(), get_vector_store()),
         ExtractiveGenerator(),
         default_top_k=settings.retrieval_top_k,
         max_top_k=settings.retrieval_max_top_k,

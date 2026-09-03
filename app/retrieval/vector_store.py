@@ -3,7 +3,9 @@
 import asyncio
 import hashlib
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
 from uuid import UUID, uuid4
@@ -19,6 +21,21 @@ from app.models import NormalizedDocument
 _DOCUMENTS_ADAPTER = TypeAdapter(list[NormalizedDocument])
 
 
+class VectorIndexKind(StrEnum):
+    """Named retrieval representations within one activated generation."""
+
+    VECTOR = "vector"
+    SENTENCE_WINDOW = "sentence_window"
+
+
+@dataclass(frozen=True, slots=True)
+class VectorIndexPayload:
+    """Documents and vectors prepared for one retrieval representation."""
+
+    documents: Sequence[NormalizedDocument]
+    vectors: NDArray[np.float32]
+
+
 class VectorIndexMetadata(BaseModel):
     """Compatibility and integrity metadata for one immutable index generation."""
 
@@ -31,6 +48,15 @@ class VectorIndexMetadata(BaseModel):
     document_count: int = Field(ge=1)
     index_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     documents_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class VectorGenerationMetadata(BaseModel):
+    """Integrity metadata for every representation in one atomic generation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    generation_id: UUID
+    indexes: dict[VectorIndexKind, VectorIndexMetadata]
 
 
 class VectorSearchMatch(BaseModel):
@@ -69,6 +95,17 @@ class VectorStore(Protocol):
         """Write an immutable generation without making it current."""
         ...
 
+    async def prepare_bundle(
+        self,
+        workspace_id: str,
+        payloads: Mapping[VectorIndexKind, VectorIndexPayload],
+        *,
+        model_name: str,
+        dimension: int,
+    ) -> VectorGenerationMetadata:
+        """Write every representation under one immutable generation."""
+        ...
+
     async def activate(self, workspace_id: str, generation_id: UUID) -> None:
         """Atomically make a prepared generation current."""
         ...
@@ -82,6 +119,7 @@ class VectorStore(Protocol):
         source_ids: frozenset[UUID],
         model_name: str,
         dimension: int,
+        index_kind: VectorIndexKind = VectorIndexKind.VECTOR,
     ) -> tuple[VectorSearchMatch, ...]:
         """Search the current compatible workspace generation."""
         ...
@@ -118,18 +156,34 @@ class FaissVectorStore:
         model_name: str,
         dimension: int,
     ) -> VectorIndexMetadata:
-        if not documents:
-            raise IndexingError("Cannot build a vector index without documents")
-        if vectors.shape != (len(documents), dimension):
-            raise IndexingError("Document and embedding dimensions do not match")
-        if not np.isfinite(vectors).all():
-            raise IndexingError("Vector index contains non-finite values")
+        generation = await self.prepare_bundle(
+            workspace_id,
+            {VectorIndexKind.VECTOR: VectorIndexPayload(documents, vectors)},
+            model_name=model_name,
+            dimension=dimension,
+        )
+        return generation.indexes[VectorIndexKind.VECTOR]
+
+    async def prepare_bundle(
+        self,
+        workspace_id: str,
+        payloads: Mapping[VectorIndexKind, VectorIndexPayload],
+        *,
+        model_name: str,
+        dimension: int,
+    ) -> VectorGenerationMetadata:
+        _validate_payloads(payloads, dimension)
         async with self._locks[workspace_id]:
             return await asyncio.to_thread(
-                self._write_generation,
+                self._write_generation_bundle,
                 workspace_id,
-                list(documents),
-                np.ascontiguousarray(vectors, dtype=np.float32),
+                {
+                    kind: VectorIndexPayload(
+                        list(payload.documents),
+                        np.ascontiguousarray(payload.vectors, dtype=np.float32),
+                    )
+                    for kind, payload in payloads.items()
+                },
                 model_name,
                 dimension,
             )
@@ -147,6 +201,7 @@ class FaissVectorStore:
         source_ids: frozenset[UUID],
         model_name: str,
         dimension: int,
+        index_kind: VectorIndexKind = VectorIndexKind.VECTOR,
     ) -> tuple[VectorSearchMatch, ...]:
         if query.shape != (dimension,):
             raise IndexingError("Query embedding dimension does not match the vector index")
@@ -159,40 +214,43 @@ class FaissVectorStore:
                 source_ids,
                 model_name,
                 dimension,
+                index_kind,
             )
 
-    def _write_generation(
+    def _write_generation_bundle(
         self,
         workspace_id: str,
-        documents: list[NormalizedDocument],
-        vectors: NDArray[np.float32],
+        payloads: Mapping[VectorIndexKind, VectorIndexPayload],
         model_name: str,
         dimension: int,
-    ) -> VectorIndexMetadata:
+    ) -> VectorGenerationMetadata:
         workspace_directory = self._workspace_directory(workspace_id)
         generation_id = uuid4()
         generation_directory = workspace_directory / "generations" / str(generation_id)
         generation_directory.mkdir(parents=True, exist_ok=False)
-        index_path = generation_directory / "index.faiss"
-        documents_path = generation_directory / "documents.json"
-        metadata_path = generation_directory / "metadata.json"
-
-        index = faiss.IndexFlatIP(dimension)
-        index.add(vectors)
-        faiss.write_index(index, str(index_path))
-        documents_payload = _DOCUMENTS_ADAPTER.dump_json(documents)
-        documents_path.write_bytes(documents_payload)
-        metadata = VectorIndexMetadata(
-            generation_id=generation_id,
-            model_name=model_name,
-            dimension=dimension,
-            normalized=True,
-            document_count=len(documents),
-            index_sha256=_sha256(index_path.read_bytes()),
-            documents_sha256=_sha256(documents_payload),
-        )
-        metadata_path.write_text(metadata.model_dump_json(indent=2))
-        return metadata
+        indexes: dict[VectorIndexKind, VectorIndexMetadata] = {}
+        for kind, payload in payloads.items():
+            representation_directory = generation_directory / kind.value
+            representation_directory.mkdir()
+            index_path = representation_directory / "index.faiss"
+            documents_path = representation_directory / "documents.json"
+            index = faiss.IndexFlatIP(dimension)
+            index.add(payload.vectors)
+            faiss.write_index(index, str(index_path))
+            documents_payload = _DOCUMENTS_ADAPTER.dump_json(list(payload.documents))
+            documents_path.write_bytes(documents_payload)
+            indexes[kind] = VectorIndexMetadata(
+                generation_id=generation_id,
+                model_name=model_name,
+                dimension=dimension,
+                normalized=True,
+                document_count=len(payload.documents),
+                index_sha256=_sha256(index_path.read_bytes()),
+                documents_sha256=_sha256(documents_payload),
+            )
+        generation = VectorGenerationMetadata(generation_id=generation_id, indexes=indexes)
+        (generation_directory / "metadata.json").write_text(generation.model_dump_json(indent=2))
+        return generation
 
     def _activate_generation(self, workspace_id: str, generation_id: UUID) -> None:
         workspace_directory = self._workspace_directory(workspace_id)
@@ -212,6 +270,7 @@ class FaissVectorStore:
         source_ids: frozenset[UUID],
         model_name: str,
         dimension: int,
+        index_kind: VectorIndexKind,
     ) -> tuple[VectorSearchMatch, ...]:
         workspace_directory = self._workspace_directory(workspace_id)
         current = workspace_directory / "CURRENT"
@@ -222,16 +281,24 @@ class FaissVectorStore:
         except (ValueError, OSError) as error:
             raise IndexingError("The workspace vector-index pointer is invalid") from error
         directory = workspace_directory / "generations" / str(generation_id)
-        index_path = directory / "index.faiss"
-        documents_path = directory / "documents.json"
+        representation_directory = directory / index_kind.value
+        index_path = representation_directory / "index.faiss"
+        documents_path = representation_directory / "documents.json"
         metadata_path = directory / "metadata.json"
         try:
-            metadata = VectorIndexMetadata.model_validate_json(metadata_path.read_text())
+            generation = VectorGenerationMetadata.model_validate_json(metadata_path.read_text())
+            metadata = generation.indexes[index_kind]
             index_payload = index_path.read_bytes()
             documents_payload = documents_path.read_bytes()
+        except KeyError as error:
+            raise IndexNotFoundError(
+                f"No {index_kind.value} index exists for this workspace; rebuild the source index"
+            ) from error
         except (OSError, ValueError) as error:
-            raise IndexingError("The current vector-index generation is unreadable") from error
-        if metadata.generation_id != generation_id:
+            raise IndexingError(
+                "The current vector-index generation is unreadable; rebuild the source index"
+            ) from error
+        if generation.generation_id != generation_id or metadata.generation_id != generation_id:
             raise IndexingError("Vector-index generation metadata does not match its pointer")
         if metadata.model_name != model_name or metadata.dimension != dimension:
             raise IndexingError("Vector index is incompatible with the configured embedding model")
@@ -274,3 +341,17 @@ class FaissVectorStore:
 
 def _sha256(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
+
+
+def _validate_payloads(
+    payloads: Mapping[VectorIndexKind, VectorIndexPayload], dimension: int
+) -> None:
+    if not payloads:
+        raise IndexingError("Cannot build a vector generation without representations")
+    for kind, payload in payloads.items():
+        if not payload.documents:
+            raise IndexingError(f"Cannot build the {kind.value} index without documents")
+        if payload.vectors.shape != (len(payload.documents), dimension):
+            raise IndexingError("Document and embedding dimensions do not match")
+        if not np.isfinite(payload.vectors).all():
+            raise IndexingError("Vector index contains non-finite values")

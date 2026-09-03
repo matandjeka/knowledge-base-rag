@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     retrieval_top_k: int = Field(default=5, ge=1, le=20)
     retrieval_max_top_k: int = Field(default=20, ge=1, le=20)
     retrieval_min_similarity: float = Field(default=0.70, ge=-1, le=1)
+    sentence_window_radius: int = Field(default=2, ge=0, le=10)
     vector_store_backend: Literal["faiss", "pinecone"] = "faiss"
     pinecone_api_key: SecretStr | None = None
     pinecone_index_name: str | None = Field(default=None, min_length=1)
