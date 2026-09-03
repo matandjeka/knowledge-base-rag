@@ -1,0 +1,26 @@
+[
+  {
+    "key": "retention",
+    "question": "How long are records retained?",
+    "before": "Records are stored securely.",
+    "target": "The retention period is seven years.",
+    "after": "Records are then destroyed.",
+    "page_number": 4
+  },
+  {
+    "key": "notice",
+    "question": "How much notice is required for termination?",
+    "before": "Managers must document the decision.",
+    "target": "Termination requires thirty days notice.",
+    "after": "Human Resources reviews every notice.",
+    "page_number": 8
+  },
+  {
+    "key": "approval",
+    "question": "Who approves an expense above the threshold?",
+    "before": "Employees submit expenses through the portal.",
+    "target": "The finance director approves expenses above ten thousand dollars.",
+    "after": "Approval must precede reimbursement.",
+    "page_number": 12
+  }
+]

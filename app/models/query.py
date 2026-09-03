@@ -1,5 +1,6 @@
-"""Query, citation, and baseline grounded-response contracts."""
+"""Query, citation, and grounded-response contracts."""
 
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -8,8 +9,15 @@ from app.models.documents import Evidence
 from app.models.sources import SourceType
 
 
+class RetrievalMode(StrEnum):
+    """Independently selectable retrieval representations."""
+
+    VECTOR = "vector"
+    SENTENCE_WINDOW = "sentence_window"
+
+
 class QueryRequest(BaseModel):
-    """Workspace-scoped baseline retrieval request."""
+    """Workspace-scoped retrieval request."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -17,6 +25,7 @@ class QueryRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
     top_k: int | None = Field(default=None, ge=1, le=20)
     source_ids: list[UUID] = Field(default_factory=list)
+    retrieval_mode: RetrievalMode = RetrievalMode.VECTOR
 
 
 class Citation(BaseModel):

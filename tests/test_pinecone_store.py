@@ -15,6 +15,7 @@ from app.core.config import Settings
 from app.core.exceptions import IndexingError, IndexNotFoundError
 from app.models import NormalizedDocument, SourceType
 from app.retrieval.pinecone_store import PineconeIndex, PineconeVectorStore
+from app.retrieval.vector_store import VectorIndexKind, VectorIndexPayload
 
 
 class MemoryPineconeIndex:
@@ -265,6 +266,48 @@ async def test_incompatible_index_is_rejected() -> None:
             model_name="fixed",
             dimension=3,
         )
+
+
+@pytest.mark.asyncio
+async def test_bundle_activation_selects_both_representations() -> None:
+    index = MemoryPineconeIndex()
+    store = _store(index)
+    source_id = uuid4()
+    baseline = _document(source_id, "complete paragraph")
+    sentence = _document(source_id, "focused sentence")
+    vector = np.asarray([[1.0, 0.0, 0.0]], dtype=np.float32)
+
+    generation = await store.prepare_bundle(
+        "workspace",
+        {
+            VectorIndexKind.VECTOR: VectorIndexPayload([baseline], vector),
+            VectorIndexKind.SENTENCE_WINDOW: VectorIndexPayload([sentence], vector),
+        },
+        model_name="fixed",
+        dimension=3,
+    )
+    await store.activate("workspace", generation.generation_id)
+
+    baseline_matches = await store.search(
+        "workspace",
+        vector[0],
+        top_k=1,
+        source_ids=frozenset(),
+        model_name="fixed",
+        dimension=3,
+    )
+    sentence_matches = await store.search(
+        "workspace",
+        vector[0],
+        top_k=1,
+        source_ids=frozenset(),
+        model_name="fixed",
+        dimension=3,
+        index_kind=VectorIndexKind.SENTENCE_WINDOW,
+    )
+
+    assert baseline_matches[0].document.content == "complete paragraph"
+    assert sentence_matches[0].document.content == "focused sentence"
 
 
 def test_pinecone_settings_are_conditional(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

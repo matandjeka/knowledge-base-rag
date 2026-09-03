@@ -1,43 +1,48 @@
-# Memory — Foundation Through PDF Ingestion
+# Memory — Baseline Vector RAG and Pinecone Adapter
 
-Last updated: 2026-09-01 12:44 CDT
+Last updated: 2026-09-01 23:24 CDT
 
 ## What was built
 
-- Completed Phases 0–2: uv-managed Python foundation, FastAPI/Streamlit applications, canonical source models, lifecycle-safe in-memory source registry, and end-to-end PDF ingestion.
-- Added validated multipart PDF upload, PyMuPDF page extraction, whitespace normalization, page-bounded overlapping chunks, workspace-scoped artifact persistence, page locators, source/document inspection endpoints, and Streamlit upload/status UI.
-- Added regression coverage for workspace isolation, lifecycle transitions, PDF validation, size limits, page metadata, artifact persistence, API ingestion, and injected storage failures.
-- Recorded the PDF uploader and ingestion-status UI patterns in `context/ui-registry.md` and updated `context/progress-tracker.md` through Phase 2.
+- Completed Phase 5 baseline vector RAG across PDF, website, and CSV sources.
+- Added query contracts, BGE embeddings, top-k retrieval, source filtering, extractive answers, insufficient-evidence handling, grounded prompt construction, and request-local citations.
+- Added durable FAISS generations with checksums, staged preparation, atomic activation, and restart-safe source discovery.
+- Added `app/retrieval/pinecone_store.py` with workspace namespaces, batched staged generations, control-record activation, server-side filtering, compatibility validation, consistency retries, and best-effort stale-generation cleanup.
+- Added Pinecone backend configuration and selection, documented setup in `README.md`, and added regression coverage in `tests/test_baseline_rag.py` and `tests/test_pinecone_store.py`.
+- Updated `context/progress-tracker.md` to mark both vector-store adapters complete.
 
 ## Decisions made
 
-- Use uv and Python 3.12+ with strict Ruff, mypy, and pytest gates.
-- Use `workspace_id` consistently as the isolation boundary.
-- Keep repository and storage behind async protocols; use in-memory source metadata and local filesystem artifacts until production persistence work.
-- Parse PDFs with PyMuPDF; reject encrypted, malformed, oversized, scanned, and textless PDFs rather than adding OCR now.
-- Use page-bounded chunks of about 1,200 characters with 200-character overlap, preserving one-based page locators.
-- Keep storage locators backend-neutral strings so a later Azure Blob adapter does not change ingestion orchestration.
+- FAISS remains the default; Pinecone is selected explicitly with `VECTOR_STORE_BACKEND=pinecone`.
+- The application connects to an existing Pinecone index and never creates or deletes it.
+- Pinecone indexes must match the configured 384-dimensional model and cosine similarity.
+- Each workspace has a Pinecone namespace. Complete generations are uploaded before a control record selects the active generation.
+- Pinecone performs active-generation and source-ID filtering server-side.
+- Old-generation cleanup is best-effort after activation and cannot roll back a valid generation.
+- The adapter uses Pinecone's official asynchronous v9 SDK with bounded timeouts.
+- Credentials remain environment-only and must never be committed or stored in memory.
 
 ## Problems solved
 
-- Closed lifecycle invariant bypasses for invalid initial statuses and null source updates.
-- Reordered PDF finalization so durable ready metadata precedes the `ready` transition.
-- Failure-state persistence errors are surfaced and logged instead of silently suppressed.
-- Isolated PyMuPDF's incomplete typing and SWIG import warnings without weakening checks for project code.
+- Fixed macOS x86_64 incompatibilities with appropriate FAISS, Torch, NumPy, Transformers, and Sentence Transformers constraints.
+- Prevented failed ingestions from activating partial indexes by separating preparation from activation and supporting READY-to-FAILED rollback.
+- Prevented rebuilds after restart from dropping older sources by enumerating persisted metadata rather than relying only on the process-local registry.
+- Corrected explicit indexing error handling, aligned query limits, and kept the embedding model lazily loaded.
 
 ## Current state
 
-- Phase 2 is complete and its final review passed with no issues.
-- Ruff, formatting, strict mypy, and all 27 tests pass.
-- FastAPI and Streamlit were restarted with the current code and are available locally on ports 8000 and 8501 for this active environment.
-- A manual PDF upload returned HTTP 201. Local artifacts persist under `data/`, which is intentionally ignored by Git.
-- Source registry metadata remains process-local and is not rehydrated from saved artifacts after an API restart; durable registry persistence is deferred by design.
+- Phase 5 is complete with FAISS and Pinecone adapters.
+- Ruff, formatting, strict mypy, `git diff --check`, and all 89 tests pass.
+- The working tree is clean at save time.
+- Pinecone is tested with an in-memory async double. No live cloud smoke test was run because no credentials or provisioned test index were supplied.
+- The registry remains process-local, although artifacts and indexes are durable and rebuilds discover persisted ready sources.
 
 ## Next session starts with
 
-Run `/remember restore`, confirm this state, then use `/architect` to design Phase 3 website ingestion from `context/build-plan.md` before implementation.
+Run `/remember restore`, confirm this state, then either perform a live Pinecone smoke test against an existing 384-dimensional cosine index or use `/architect phase 6` for sentence-window retrieval.
 
 ## Open questions
 
-- Define website crawl limits, robots-policy behavior, network safety/SSRF controls, extraction library, and same-domain rules during Phase 3 architecture.
-- `QueryRequest`, `QueryResponse`, and `Citation` remain intentionally deferred to later query/generation and citation phases.
+- Whether to add an opt-in live Pinecone integration-test marker once a non-production test index is available.
+- When to implement full durable source-registry rehydration instead of filesystem discovery during rebuilds.
+- Phase 6 sentence-window parsing, neighbor-window metadata, and independent enablement require architecture decisions.

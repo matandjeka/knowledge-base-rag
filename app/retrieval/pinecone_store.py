@@ -13,7 +13,13 @@ from numpy.typing import NDArray
 
 from app.core.exceptions import IndexingError, IndexNotFoundError
 from app.models import NormalizedDocument
-from app.retrieval.vector_store import VectorIndexMetadata, VectorSearchMatch
+from app.retrieval.vector_store import (
+    VectorGenerationMetadata,
+    VectorIndexKind,
+    VectorIndexMetadata,
+    VectorIndexPayload,
+    VectorSearchMatch,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -102,43 +108,60 @@ class PineconeVectorStore:
         model_name: str,
         dimension: int,
     ) -> VectorIndexMetadata:
-        self._validate_workspace(workspace_id)
-        await self._ensure_compatible(dimension)
-        if not documents:
-            raise IndexingError("Cannot build a vector index without documents")
-        if vectors.shape != (len(documents), dimension):
-            raise IndexingError("Document and embedding dimensions do not match")
-        if not np.isfinite(vectors).all():
-            raise IndexingError("Vector index contains non-finite values")
-
-        generation_id = uuid4()
-        document_payload = (
-            b"[" + b",".join(document.model_dump_json().encode() for document in documents) + b"]"
-        )
-        vector_payload = np.ascontiguousarray(vectors, dtype=np.float32).tobytes()
-        metadata = VectorIndexMetadata(
-            generation_id=generation_id,
+        generation = await self.prepare_bundle(
+            workspace_id,
+            {VectorIndexKind.VECTOR: VectorIndexPayload(documents, vectors)},
             model_name=model_name,
             dimension=dimension,
-            normalized=True,
-            document_count=len(documents),
-            index_sha256=hashlib.sha256(vector_payload).hexdigest(),
-            documents_sha256=hashlib.sha256(document_payload).hexdigest(),
         )
-        records = [
-            {
-                "id": f"{generation_id}:{document.document_id}",
-                "values": vector.tolist(),
-                "metadata": {
-                    "record_type": _DOCUMENT_KIND,
-                    "generation_id": str(generation_id),
-                    "source_id": str(document.source_id),
-                    "document_json": document.model_dump_json(),
-                },
-            }
-            for document, vector in zip(documents, vectors, strict=True)
-        ]
-        records.append(self._generation_record(metadata))
+        return generation.indexes[VectorIndexKind.VECTOR]
+
+    async def prepare_bundle(
+        self,
+        workspace_id: str,
+        payloads: Mapping[VectorIndexKind, VectorIndexPayload],
+        *,
+        model_name: str,
+        dimension: int,
+    ) -> VectorGenerationMetadata:
+        self._validate_workspace(workspace_id)
+        await self._ensure_compatible(dimension)
+        self._validate_payloads(payloads, dimension)
+        generation_id = uuid4()
+        indexes: dict[VectorIndexKind, VectorIndexMetadata] = {}
+        records: list[dict[str, Any]] = []
+        for kind, payload in payloads.items():
+            document_payload = (
+                b"["
+                + b",".join(document.model_dump_json().encode() for document in payload.documents)
+                + b"]"
+            )
+            contiguous_vectors = np.ascontiguousarray(payload.vectors, dtype=np.float32)
+            indexes[kind] = VectorIndexMetadata(
+                generation_id=generation_id,
+                model_name=model_name,
+                dimension=dimension,
+                normalized=True,
+                document_count=len(payload.documents),
+                index_sha256=hashlib.sha256(contiguous_vectors.tobytes()).hexdigest(),
+                documents_sha256=hashlib.sha256(document_payload).hexdigest(),
+            )
+            records.extend(
+                {
+                    "id": f"{generation_id}:{kind.value}:{document.document_id}",
+                    "values": vector.tolist(),
+                    "metadata": {
+                        "record_type": _DOCUMENT_KIND,
+                        "generation_id": str(generation_id),
+                        "index_kind": kind.value,
+                        "source_id": str(document.source_id),
+                        "document_json": document.model_dump_json(),
+                    },
+                }
+                for document, vector in zip(payload.documents, contiguous_vectors, strict=True)
+            )
+        generation = VectorGenerationMetadata(generation_id=generation_id, indexes=indexes)
+        records.append(self._generation_record(generation))
         try:
             async with self._index_factory() as index:
                 for start in range(0, len(records), self._batch_size):
@@ -148,7 +171,7 @@ class PineconeVectorStore:
                     )
         except Exception as error:
             raise IndexingError("Pinecone generation preparation failed") from error
-        return metadata
+        return generation
 
     async def activate(self, workspace_id: str, generation_id: UUID) -> None:
         self._validate_workspace(workspace_id)
@@ -196,6 +219,7 @@ class PineconeVectorStore:
         source_ids: frozenset[UUID],
         model_name: str,
         dimension: int,
+        index_kind: VectorIndexKind = VectorIndexKind.VECTOR,
     ) -> tuple[VectorSearchMatch, ...]:
         self._validate_workspace(workspace_id)
         await self._ensure_compatible(dimension)
@@ -207,6 +231,7 @@ class PineconeVectorStore:
                 metadata_filter: dict[str, Any] = {
                     "record_type": {"$eq": _DOCUMENT_KIND},
                     "generation_id": {"$eq": str(generation)},
+                    "index_kind": {"$eq": index_kind.value},
                 }
                 if source_ids:
                     metadata_filter["source_id"] = {
@@ -262,7 +287,7 @@ class PineconeVectorStore:
 
     async def _wait_for_generation(
         self, index: PineconeIndex, workspace_id: str, generation_id: UUID
-    ) -> VectorIndexMetadata:
+    ) -> VectorGenerationMetadata:
         for attempt in range(self._consistency_retries):
             response = await index.fetch(
                 ids=[f"__generation__:{generation_id}"], namespace=workspace_id
@@ -274,7 +299,7 @@ class PineconeVectorStore:
                 encoded = payload.get("index_metadata") if isinstance(payload, Mapping) else None
                 if isinstance(encoded, str):
                     try:
-                        return VectorIndexMetadata.model_validate_json(encoded)
+                        return VectorGenerationMetadata.model_validate_json(encoded)
                     except ValueError as error:
                         raise IndexingError("Pinecone generation metadata is invalid") from error
             if attempt + 1 < self._consistency_retries:
@@ -298,7 +323,7 @@ class PineconeVectorStore:
         except ValueError as error:
             raise IndexingError("Pinecone workspace control record is invalid") from error
 
-    def _generation_record(self, metadata: VectorIndexMetadata) -> dict[str, Any]:
+    def _generation_record(self, metadata: VectorGenerationMetadata) -> dict[str, Any]:
         return {
             "id": f"__generation__:{metadata.generation_id}",
             "values": [0.0] * self._dimension,
@@ -337,3 +362,17 @@ class PineconeVectorStore:
             for character in workspace_id
         ):
             raise ValueError("Invalid workspace identifier")
+
+    @staticmethod
+    def _validate_payloads(
+        payloads: Mapping[VectorIndexKind, VectorIndexPayload], dimension: int
+    ) -> None:
+        if not payloads:
+            raise IndexingError("Cannot build a vector generation without representations")
+        for kind, payload in payloads.items():
+            if not payload.documents:
+                raise IndexingError(f"Cannot build the {kind.value} index without documents")
+            if payload.vectors.shape != (len(payload.documents), dimension):
+                raise IndexingError("Document and embedding dimensions do not match")
+            if not np.isfinite(payload.vectors).all():
+                raise IndexingError("Vector index contains non-finite values")

@@ -1,15 +1,16 @@
 # Advanced Multi-Source Enterprise RAG — Progress Tracker
 
 ## Overall Status
-**Last Completed Implementation Phase:** Phase 5 — Baseline Vector RAG
+**Last Completed Implementation Phase:** Phase 6 — Sentence-Window Retrieval
 
-**Next Phase:** Phase 6 — Sentence-Window Retrieval (ready to architect)
+**Next Phase:** Phase 7 — Knowledge Graph Retrieval (ready to architect)
 
-**Last Phase With All Exit Criteria Satisfied:** Phase 5 — Baseline Vector RAG
+**Last Phase With All Exit Criteria Satisfied:** Phase 6 — Sentence-Window Retrieval
 
-Phases 2–5 now provide ingestion, durable FAISS/Pinecone indexing, cross-source retrieval,
-baseline grounded answers, and PDF/website/CSV citation locators. Advanced citation
-rendering and source inspection remain deferred to Phase 13.
+Phases 2–6 now provide ingestion, atomically activated baseline and sentence-window indexes
+for FAISS/Pinecone, independently selectable retrieval, grounded answers, and
+PDF/website/CSV citation locators. Advanced citation rendering and source inspection remain
+deferred to Phase 13.
 
 ## Status Legend
 - [ ] Not started
@@ -102,11 +103,17 @@ rendering and source inspection remain deferred to Phase 13.
 - [x] Vector retrieval tests
 
 ## 8. Sentence Window Retrieval
-- [ ] Sentence parser
-- [ ] Window metadata
-- [ ] Window retriever
-- [ ] Metadata replacement
-- [ ] Evaluation vs baseline
+- [x] Sentence parser
+- [x] Window metadata
+- [x] Window retriever
+- [x] Metadata replacement
+- [x] Evaluation vs baseline
+
+**Implementation status:** Complete
+
+**Exit criteria:** Complete — sentence-window retrieval can be selected independently for a
+query, expands focused matches within their normalized document boundaries, and preserves
+source-specific citation locators across FAISS and Pinecone.
 
 ## 9. Graph Retrieval
 - [ ] Graph schema
@@ -248,10 +255,11 @@ rendering and source inspection remain deferred to Phase 13.
 ### Milestone A — Basic Multi-Source RAG
 PDF + website + CSV + vector retrieval + citations.
 
-Status: [ ]
+Status: [x]
 
-Current dependencies: vector retrieval and grounded generation (Phase 5), and rendered
-citations (Phase 13).
+Completed through Phases 2–5 with cross-source vector retrieval, grounded answers, and
+source-specific PDF page, website URL, and CSV row citations. Advanced inline rendering
+and evidence inspection remain part of Phase 13 and are not required for this milestone.
 
 ### Milestone B — Advanced Retrieval
 Sentence windows + graph + BM25 + fusion + re-ranking.

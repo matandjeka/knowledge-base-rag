@@ -29,6 +29,7 @@ from app.repositories import InMemorySourceRepository
 from app.retrieval.embedding import HuggingFaceEmbeddingService
 from app.retrieval.indexing import VectorIndexingService
 from app.retrieval.query_service import QueryService
+from app.retrieval.sentence_window import SentenceWindowRetriever
 from app.retrieval.vector import VectorRetriever
 from app.retrieval.vector_store import FaissVectorStore, VectorIndexMetadata
 from app.storage import LocalSourceStorage
@@ -119,6 +120,7 @@ async def test_query_retrieves_and_cites_all_three_source_types(tmp_path: Path) 
     service = QueryService(
         repository,
         VectorRetriever(embeddings, vector_store),
+        SentenceWindowRetriever(embeddings, vector_store),
         ExtractiveGenerator(),
         default_top_k=5,
         max_top_k=20,
@@ -158,6 +160,7 @@ async def test_query_returns_insufficient_evidence_below_threshold(tmp_path: Pat
     service = QueryService(
         repository,
         VectorRetriever(embeddings, vector_store),
+        SentenceWindowRetriever(embeddings, vector_store),
         ExtractiveGenerator(),
         default_top_k=5,
         max_top_k=20,
@@ -322,6 +325,7 @@ async def test_faiss_rejects_corrupted_document_mapping(tmp_path: Path) -> None:
         / "workspace"
         / "generations"
         / str(metadata.generation_id)
+        / "vector"
         / "documents.json"
     )
     mapping.write_text("[]")

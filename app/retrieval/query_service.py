@@ -3,9 +3,9 @@
 from app.citations.builder import build_citations
 from app.core.exceptions import RetrievalError
 from app.generation.extractive import Generator
-from app.models import QueryRequest, QueryResponse
+from app.models import QueryRequest, QueryResponse, RetrievalMode
 from app.repositories import SourceRepository
-from app.retrieval.vector import VectorRetriever
+from app.retrieval.base import Retriever
 
 
 class QueryService:
@@ -14,7 +14,8 @@ class QueryService:
     def __init__(
         self,
         repository: SourceRepository,
-        retriever: VectorRetriever,
+        retriever: Retriever,
+        sentence_window_retriever: Retriever,
         generator: Generator,
         *,
         default_top_k: int,
@@ -23,6 +24,7 @@ class QueryService:
     ) -> None:
         self._repository = repository
         self._retriever = retriever
+        self._sentence_window_retriever = sentence_window_retriever
         self._generator = generator
         self._default_top_k = default_top_k
         self._max_top_k = max_top_k
@@ -35,7 +37,12 @@ class QueryService:
             raise RetrievalError(f"top_k cannot exceed {self._max_top_k}")
         for source_id in request.source_ids:
             await self._repository.get(request.workspace_id, source_id)
-        evidence = await self._retriever.retrieve(
+        retriever = (
+            self._sentence_window_retriever
+            if request.retrieval_mode is RetrievalMode.SENTENCE_WINDOW
+            else self._retriever
+        )
+        evidence = await retriever.retrieve(
             request.workspace_id,
             request.question,
             top_k=top_k,
