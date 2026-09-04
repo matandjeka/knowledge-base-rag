@@ -17,6 +17,7 @@ class RetrievalMode(StrEnum):
     GRAPH = "graph"
     LEXICAL = "lexical"
     FUSION = "fusion"
+    SQL = "sql"
 
 
 class FusionStrategy(StrEnum):
@@ -57,6 +58,8 @@ class QueryRequest(BaseModel):
     @model_validator(mode="after")
     def validate_fusion_options(self) -> "QueryRequest":
         """Require coherent fusion-only request options."""
+        if self.retrieval_mode is RetrievalMode.SQL and len(self.source_ids) != 1:
+            raise ValueError("SQL retrieval requires exactly one database source_id")
         if self.retrieval_mode is not RetrievalMode.FUSION:
             if (
                 self.fusion_retrievers is not None

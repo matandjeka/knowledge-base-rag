@@ -21,6 +21,18 @@ class CsvValidationError(IngestionError):
     """Raised when an uploaded CSV or its ingestion configuration is invalid."""
 
 
+class DatabaseConfigurationError(ApplicationError):
+    """Raised when a database source cannot be configured safely."""
+
+
+class SqlValidationError(ApplicationError):
+    """Raised when generated SQL violates structured retrieval policy."""
+
+
+class DatabaseExecutionError(ApplicationError):
+    """Raised when safe database query execution fails."""
+
+
 class ParsingError(ApplicationError):
     """Raised when source parsing or normalization fails."""
 

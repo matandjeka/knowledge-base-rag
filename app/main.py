@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
+from app.api.dependencies import get_database_connection_manager
 from app.api.routes.graph import router as graph_router
 from app.api.routes.health import router as health_router
 from app.api.routes.query import router as query_router
@@ -20,7 +21,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Configure application services for the process lifetime."""
     settings = get_settings()
     configure_logging(settings.log_level)
-    yield
+    try:
+        yield
+    finally:
+        await get_database_connection_manager().close()
 
 
 settings = get_settings()

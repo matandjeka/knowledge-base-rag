@@ -6,11 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_query_service
 from app.core.exceptions import (
+    DatabaseConfigurationError,
+    DatabaseExecutionError,
     IndexingError,
     IndexNotFoundError,
     RerankingError,
     RetrievalError,
     SourceNotFoundError,
+    SqlValidationError,
 )
 from app.models import QueryRequest, QueryResponse
 from app.retrieval.query_service import QueryService
@@ -36,9 +39,19 @@ async def query_knowledge_base(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
         ) from error
+    except SqlValidationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
+        ) from error
+    except DatabaseExecutionError as error:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error)) from error
     except RerankingError as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)
+        ) from error
+    except DatabaseConfigurationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
         ) from error
     except IndexingError as error:
         raise HTTPException(

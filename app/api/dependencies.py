@@ -4,6 +4,14 @@ from functools import lru_cache
 
 from app.core.config import get_settings
 from app.core.exceptions import GraphConfigurationError
+from app.database import (
+    DatabaseConnectionManager,
+    DatabaseRegistrationService,
+    DatabaseRetriever,
+    EnvironmentSecretResolver,
+    OpenAISqlGenerator,
+    SqlValidator,
+)
 from app.generation.extractive import ExtractiveGenerator
 from app.graph.indexing import GraphIndexingService
 from app.graph.openai_extractor import OpenAIGraphExtractor
@@ -134,6 +142,38 @@ def get_reranking_service() -> RerankingService:
 
 
 @lru_cache
+def get_database_connection_manager() -> DatabaseConnectionManager:
+    """Return the environment-backed external database connection boundary."""
+    return DatabaseConnectionManager(
+        EnvironmentSecretResolver(),
+        timeout_seconds=get_settings().sql_execution_timeout_seconds,
+    )
+
+
+@lru_cache
+def get_database_registration_service() -> DatabaseRegistrationService:
+    """Return database source registration orchestration."""
+    return DatabaseRegistrationService(get_source_repository(), get_database_connection_manager())
+
+
+def _database_retriever() -> DatabaseRetriever | None:
+    settings = get_settings()
+    if settings.openai_api_key is None or settings.sql_generation_model is None:
+        return None
+    return DatabaseRetriever(
+        get_source_repository(),
+        get_database_connection_manager(),
+        OpenAISqlGenerator(
+            api_key=settings.openai_api_key.get_secret_value(),
+            model_name=settings.sql_generation_model,
+            timeout_seconds=settings.sql_generation_timeout_seconds,
+            max_retries=settings.sql_generation_max_retries,
+        ),
+        SqlValidator(max_rows=settings.sql_max_rows),
+    )
+
+
+@lru_cache
 def get_vector_indexing_service() -> VectorIndexingService:
     """Return the workspace vector-index orchestrator."""
     return VectorIndexingService(
@@ -250,4 +290,5 @@ def get_query_service() -> QueryService:
         fusion_retriever=fusion_retriever,
         reranking_service=get_reranking_service(),
         reranking_candidate_pool_size=settings.reranking_candidate_pool_size,
+        database_retriever=_database_retriever(),
     )

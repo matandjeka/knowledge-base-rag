@@ -75,6 +75,11 @@ class Settings(BaseSettings):
     graph_extraction_batch_size: int = Field(default=8, ge=1, le=100)
     graph_extraction_max_batch_characters: int = Field(default=20_000, ge=100)
     graph_retrieval_max_hops: int = Field(default=2, ge=1, le=4)
+    sql_generation_model: str | None = Field(default=None, min_length=1)
+    sql_generation_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
+    sql_generation_max_retries: int = Field(default=2, ge=0, le=10)
+    sql_execution_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
+    sql_max_rows: int = Field(default=100, ge=1, le=1000)
 
     @model_validator(mode="after")
     def validate_vector_store_configuration(self) -> "Settings":
