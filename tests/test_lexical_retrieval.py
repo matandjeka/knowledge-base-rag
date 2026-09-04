@@ -19,6 +19,7 @@ from app.evaluation.retrieval_comparison import (
 )
 from app.generation.extractive import ExtractiveGenerator
 from app.models import (
+    FusionStrategy,
     NormalizedDocument,
     QueryRequest,
     RetrievalMode,
@@ -28,6 +29,7 @@ from app.models import (
     SourceType,
 )
 from app.repositories import InMemorySourceRepository
+from app.retrieval.fusion import FusionRetriever
 from app.retrieval.indexing import VectorIndexingService
 from app.retrieval.lexical import LexicalRetriever, LocalLexicalStore, tokenize_lexical
 from app.retrieval.query_service import QueryService
@@ -273,6 +275,94 @@ async def test_indexer_prepares_and_activates_matching_lexical_generation(tmp_pa
 
 
 @pytest.mark.asyncio
+async def test_lexical_retrieval_fails_closed_on_generation_mismatch(tmp_path: Path) -> None:
+    source_id = uuid4()
+    document = _document(source_id, "Policy HR-402 applies.")
+    vector_store = FaissVectorStore(tmp_path)
+    vectors = np.asarray([[1.0, 0.0, 0.0]], dtype=np.float32)
+    vector_generation = await vector_store.prepare(
+        "workspace",
+        [document],
+        vectors,
+        model_name=FlatEmbeddings.model_name,
+        dimension=FlatEmbeddings.dimension,
+    )
+    await vector_store.activate("workspace", vector_generation.generation_id)
+    lexical_store = LocalLexicalStore(tmp_path)
+    mismatched = await lexical_store.prepare("workspace", [document])
+    await lexical_store.activate("workspace", mismatched.generation_id)
+
+    with pytest.raises(IndexingError, match="different active generations"):
+        await LexicalRetriever(
+            lexical_store,
+            generation_provider=vector_store,
+        ).retrieve(
+            "workspace",
+            "HR-402",
+            top_k=1,
+            source_ids=frozenset(),
+            min_similarity=0,
+        )
+
+
+@pytest.mark.asyncio
+async def test_indexer_restores_previous_lexical_generation_when_vector_activation_fails(
+    tmp_path: Path,
+) -> None:
+    class FailingFaissVectorStore(FaissVectorStore):
+        fail_activation = False
+
+        async def activate(self, workspace_id: str, generation_id: UUID) -> None:
+            if self.fail_activation:
+                raise OSError("vector activation failed")
+            await super().activate(workspace_id, generation_id)
+
+    source_id = uuid4()
+    old_document = _document(source_id, "Policy OLD-1 applies.")
+    new_document = _document(source_id, "Policy NEW-2 applies.")
+    old_vectors = np.asarray([[1.0, 0.0, 0.0]], dtype=np.float32)
+    new_vectors = np.asarray([[0.0, 1.0, 0.0]], dtype=np.float32)
+    vector_store = FailingFaissVectorStore(tmp_path)
+    lexical_store = LocalLexicalStore(tmp_path)
+    old_generation = await vector_store.prepare(
+        "workspace",
+        [old_document],
+        old_vectors,
+        model_name=FlatEmbeddings.model_name,
+        dimension=FlatEmbeddings.dimension,
+    )
+    await lexical_store.prepare(
+        "workspace", [old_document], generation_id=old_generation.generation_id
+    )
+    await lexical_store.activate("workspace", old_generation.generation_id)
+    await vector_store.activate("workspace", old_generation.generation_id)
+    new_generation = await vector_store.prepare(
+        "workspace",
+        [new_document],
+        new_vectors,
+        model_name=FlatEmbeddings.model_name,
+        dimension=FlatEmbeddings.dimension,
+    )
+    await lexical_store.prepare(
+        "workspace", [new_document], generation_id=new_generation.generation_id
+    )
+    vector_store.fail_activation = True
+    indexer = VectorIndexingService(
+        InMemorySourceRepository(),
+        LocalSourceStorage(tmp_path),
+        FlatEmbeddings(),
+        vector_store,
+        lexical_store=lexical_store,
+    )
+
+    with pytest.raises(OSError, match="activation failed"):
+        await indexer.activate("workspace", new_generation.generation_id)
+
+    assert await vector_store.active_generation("workspace") == old_generation.generation_id
+    assert await lexical_store.active_generation("workspace") == old_generation.generation_id
+
+
+@pytest.mark.asyncio
 async def test_query_service_selects_lexical_mode_and_uses_lexical_threshold(
     tmp_path: Path,
 ) -> None:
@@ -368,6 +458,16 @@ async def test_identifier_benchmark_lexical_outperforms_vector_only(tmp_path: Pa
     lexical = LexicalRetriever(lexical_store)
     vector_runs: list[RetrievalBenchmarkRun] = []
     lexical_runs: list[RetrievalBenchmarkRun] = []
+    fusion_runs: list[RetrievalBenchmarkRun] = []
+    fusion = FusionRetriever(
+        {RetrievalMode.VECTOR: vector, RetrievalMode.LEXICAL: lexical},
+        max_top_k=20,
+        candidate_multiplier=20,
+        rrf_k=60,
+        weights={RetrievalMode.VECTOR: 0.8, RetrievalMode.LEXICAL: 0.2},
+        min_similarity=0,
+        lexical_min_score=0,
+    )
     for fixture, source in zip(fixtures, sources, strict=True):
         locator = (
             f"page {fixture.page_number}"
@@ -412,8 +512,26 @@ async def test_identifier_benchmark_lexical_outperforms_vector_only(tmp_path: Pa
                 latency_seconds=perf_counter() - lexical_started,
             )
         )
+        fusion_started = perf_counter()
+        fused_evidence = await fusion.retrieve(
+            "workspace",
+            fixture.question,
+            top_k=1,
+            source_ids=frozenset(),
+            modes=(RetrievalMode.VECTOR, RetrievalMode.LEXICAL),
+            strategy=FusionStrategy.RRF,
+        )
+        fusion_runs.append(
+            RetrievalBenchmarkRun(
+                case=case,
+                evidence=tuple(fused_evidence),
+                citations=tuple(build_citations(fused_evidence)),
+                latency_seconds=perf_counter() - fusion_started,
+            )
+        )
     vector_metrics = score_retrieval_runs(vector_runs)
     lexical_metrics = score_retrieval_runs(lexical_runs)
+    fusion_metrics = score_retrieval_runs(fusion_runs)
 
     assert lexical_metrics.hit_rate_at_k == 1
     assert lexical_metrics.mean_reciprocal_rank == 1
@@ -421,3 +539,6 @@ async def test_identifier_benchmark_lexical_outperforms_vector_only(tmp_path: Pa
     assert lexical_metrics.hit_rate_at_k > vector_metrics.hit_rate_at_k
     assert lexical_metrics.mean_reciprocal_rank > vector_metrics.mean_reciprocal_rank
     assert lexical_metrics.mean_latency_seconds >= 0
+    assert fusion_metrics.hit_rate_at_k == 1
+    assert fusion_metrics.mean_reciprocal_rank > vector_metrics.mean_reciprocal_rank
+    assert fusion_metrics.citation_accuracy == 1

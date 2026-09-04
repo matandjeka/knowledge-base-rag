@@ -3,7 +3,7 @@
 from typing import Protocol
 from uuid import UUID
 
-from app.core.exceptions import IndexingError
+from app.core.exceptions import IndexingError, IndexNotFoundError
 from app.models import NormalizedDocument, SourceStatus
 from app.repositories import SourceRepository
 from app.retrieval.embedding import EmbeddingService
@@ -107,7 +107,23 @@ class VectorIndexingService:
         return generation.indexes[VectorIndexKind.VECTOR]
 
     async def activate(self, workspace_id: str, generation_id: UUID) -> None:
-        """Atomically publish a prepared generation."""
-        if self._lexical_store is not None:
-            await self._lexical_store.activate(workspace_id, generation_id)
-        await self._vector_store.activate(workspace_id, generation_id)
+        """Publish matching indexes and roll back lexical state on vector failure."""
+        if self._lexical_store is None:
+            await self._vector_store.activate(workspace_id, generation_id)
+            return
+        try:
+            previous_lexical = await self._lexical_store.active_generation(workspace_id)
+        except IndexNotFoundError:
+            previous_lexical = None
+        await self._lexical_store.activate(workspace_id, generation_id)
+        try:
+            await self._vector_store.activate(workspace_id, generation_id)
+        except Exception:
+            try:
+                active_vector = await self._vector_store.active_generation(workspace_id)
+            except Exception:
+                active_vector = None
+            if active_vector == generation_id:
+                return
+            await self._lexical_store.restore_activation(workspace_id, previous_lexical)
+            raise

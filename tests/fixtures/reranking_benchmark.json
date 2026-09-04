@@ -1,0 +1,10 @@
+[
+  {"key":"access","question":"What governs privileged access?"},
+  {"key":"retention","question":"How long are records retained?"},
+  {"key":"renewal","question":"When does the contract renew?"},
+  {"key":"gateway","question":"Who owns the API gateway?"},
+  {"key":"inventory","question":"Where is the replacement filter stored?"},
+  {"key":"escalation","question":"Which team receives the escalation?"},
+  {"key":"migration","question":"What is the migration deadline?"},
+  {"key":"approval","question":"Who must approve the wire transfer?"}
+]

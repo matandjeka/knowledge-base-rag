@@ -22,6 +22,12 @@ def test_settings_have_safe_local_defaults() -> None:
     assert settings.fusion_sentence_window_weight == 0.25
     assert settings.fusion_graph_weight == 0.25
     assert settings.fusion_lexical_weight == 0.1
+    assert settings.reranker_model_name == "BAAI/bge-reranker-base"
+    assert settings.reranker_batch_size == 16
+    assert settings.reranker_max_length == 512
+    assert settings.reranker_device == "auto"
+    assert settings.reranking_candidate_pool_size == 30
+    assert settings.reranking_max_per_source == 2
 
 
 def test_settings_require_at_least_one_positive_fusion_weight() -> None:

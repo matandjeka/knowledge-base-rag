@@ -8,6 +8,7 @@ from app.api.dependencies import get_query_service
 from app.core.exceptions import (
     IndexingError,
     IndexNotFoundError,
+    RerankingError,
     RetrievalError,
     SourceNotFoundError,
 )
@@ -34,6 +35,10 @@ async def query_knowledge_base(
     except RetrievalError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
+        ) from error
+    except RerankingError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)
         ) from error
     except IndexingError as error:
         raise HTTPException(

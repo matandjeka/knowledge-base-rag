@@ -124,6 +124,33 @@ are normalized before use. `FUSION_RRF_K` controls the rank constant and
 `RETRIEVAL_MAX_TOP_K`. Each fused evidence item exposes its original ranks, effective weights, and
 score contributions in `metadata.fusion_contributions`.
 
+## Cross-encoder re-ranking
+
+Re-ranking is an opt-in stage after fusion. It scores a larger fused candidate pool with a lazy
+Hugging Face cross-encoder, applies a deterministic per-source diversity pass, and returns the
+requested final `top_k` evidence items:
+
+```json
+{
+  "workspace_id": "example-workspace",
+  "question": "What does policy HR-402 require?",
+  "top_k": 5,
+  "retrieval_mode": "fusion",
+  "fusion_retrievers": ["vector", "sentence_window", "lexical"],
+  "rerank": true
+}
+```
+
+`RERANKER_MODEL_NAME` defaults to `BAAI/bge-reranker-base`. Batch size, maximum sequence length,
+device, candidate-pool size, and the first-pass per-source cap are configurable through the
+corresponding `RERANKER_*` and `RERANKING_*` settings. The first re-ranked query may download and
+load the configured model. Model or inference failures return an explicit service error; the
+application does not silently fall back to fused-only ordering.
+
+Re-ranked evidence preserves its stable fused identity and citation metadata. Its `raw_score` is
+the cross-encoder score, while fusion rank, fusion score, final rank, model identity, and measured
+latency are available under `metadata.reranking`.
+
 ## Knowledge graph retrieval
 
 Graph indexing is optional and explicit. Configure an OpenAI model that supports structured
