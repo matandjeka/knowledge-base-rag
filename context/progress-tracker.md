@@ -3,25 +3,26 @@
 ## Overall Status
 **Last Reviewed:** September 4, 2026
 
-**Last Completed Implementation Phase:** Phase 10 — Re-ranking
+**Last Completed Implementation Phase:** Phase 11 — Structured Database Retrieval
 
-**Next Phase:** Phase 11 — Structured Database Retrieval (ready to architect)
+**Next Phase:** Phase 12 — Query Router (ready to architect)
 
-**Last Phase With All Exit Criteria Satisfied:** Phase 10 — Re-ranking
+**Last Phase With All Exit Criteria Satisfied:** Phase 11 — Structured Database Retrieval
 
-Phases 2–10 now provide ingestion, coordinated baseline, sentence-window, and lexical index
+Phases 2–11 now provide ingestion, coordinated baseline, sentence-window, and lexical index
 generations for FAISS/Pinecone plus durable local BM25 storage, OpenAI-assisted knowledge-graph
 extraction, durable local graph generations, independently selectable or concurrently fused
 vector/window/graph/lexical retrieval, optional cross-encoder re-ranking with source diversity,
-grounded answers, and multi-source provenance. Advanced citation rendering and source inspection
-remain deferred to Phase 13.
+PostgreSQL-first structured retrieval with AST-validated read-only SQL and server-enforced tenant
+filters, grounded answers, and multi-source provenance. Advanced citation rendering and source
+inspection remain deferred to Phase 13.
 
-**Build-plan alignment:** Phases 0–10 are complete. Phase 11 structured database retrieval has not
-started. Tracker sections are grouped by subsystem, so their section numbers do not map one-to-one
-to the phase numbers in `build-plan.md`.
+**Build-plan alignment:** Phases 0–11 are complete. Phase 12 query routing has not started. Tracker
+sections are grouped by subsystem, so their section numbers do not map one-to-one to the phase
+numbers in `build-plan.md`.
 
-**Verification:** Ruff formatting and lint pass, mypy passes across 78 source files, and pytest
-reports `142 passed, 1 skipped`. The skipped test is the opt-in live OpenAI graph integration test.
+**Verification:** Ruff formatting and lint pass, mypy passes across 89 source files, and pytest
+reports `151 passed, 1 skipped`. The skipped test is the opt-in live OpenAI graph integration test.
 
 ## Status Legend
 - [ ] Not started
@@ -96,14 +97,23 @@ reports `142 passed, 1 skipped`. The skipped test is the opt-in live OpenAI grap
 **Exit criteria:** Complete — CSV rows are indexed, retrieved, and cited by stable row ID.
 
 ## 6. Database Source
-- [ ] SQLAlchemy adapter
-- [ ] Read-only connection
-- [ ] Schema discovery
-- [ ] Table allowlist
-- [ ] SQL generation
-- [ ] SQL safety validator
-- [ ] Structured result evidence
-- [ ] DB citations
+- [x] SQLAlchemy adapter
+- [x] Read-only connection
+- [x] Schema discovery
+- [x] Table allowlist
+- [x] SQL generation
+- [x] SQL safety validator
+- [x] Structured result evidence
+- [x] DB citations
+
+**Implementation status:** Complete
+
+**Exit criteria:** Complete — one explicitly selected, workspace-scoped PostgreSQL source can
+answer aggregation and filtering questions through schema-aware structured SQL generation.
+Credentials remain environment-only; SQL is parsed, allowlist-checked, parameterized, tenant-
+filtered, row-limited, and executed in a read-only transaction. SQLite provides the deterministic
+end-to-end test adapter, and database results retain table, record, query-fingerprint, row-count,
+and latency provenance.
 
 ## 7. Embeddings / Vector Store
 - [x] Embedding interface
@@ -219,7 +229,8 @@ eight-case graded benchmark improves MRR and NDCG over fused-only ordering.
 - [x] Website form
 - [ ] CSV upload
 - [ ] DB form
-- [ ] Chat
+- [x] DB form
+- [~] Chat (structured database questions implemented; general multi-source chat deferred)
 - [ ] Citation badges
 - [ ] Source inspector
 - [ ] Retrieval trace panel
@@ -253,8 +264,8 @@ eight-case graded benchmark improves MRR and NDCG over fused-only ordering.
 - [ ] Retrieval metadata filters
 - [x] File validation
 - [x] Crawl allowlist
-- [ ] Secret management
-- [ ] SQL read-only enforcement
+- [~] Secret management (environment-backed references implemented; managed vault deferred)
+- [x] SQL read-only enforcement
 - [ ] Prompt injection mitigation
 
 ## 20. Local Deployment

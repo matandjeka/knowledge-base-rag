@@ -1,5 +1,16 @@
 """Canonical application data models."""
 
+from app.models.database import (
+    DatabaseColumn,
+    DatabaseDialect,
+    DatabaseIsolationMode,
+    DatabaseSourceRequest,
+    DatabaseSourceResult,
+    DatabaseTablePolicy,
+    DatabaseTableSchema,
+    GeneratedSql,
+    ValidatedSql,
+)
 from app.models.documents import Evidence, NormalizedDocument, RawDocument
 from app.models.graph import (
     BatchGraphExtraction,
@@ -49,6 +60,13 @@ __all__ = [
     "CsvColumnType",
     "CsvIngestionResult",
     "CsvPreviewResult",
+    "DatabaseColumn",
+    "DatabaseDialect",
+    "DatabaseIsolationMode",
+    "DatabaseSourceRequest",
+    "DatabaseSourceResult",
+    "DatabaseTablePolicy",
+    "DatabaseTableSchema",
     "DocumentGraphExtraction",
     "EntityType",
     "Evidence",
@@ -56,6 +74,7 @@ __all__ = [
     "ExtractedRelationship",
     "FusionContribution",
     "FusionStrategy",
+    "GeneratedSql",
     "GraphEntity",
     "GraphGenerationMetadata",
     "GraphIndexRequest",
@@ -78,6 +97,7 @@ __all__ = [
     "SourceStatus",
     "SourceType",
     "SourceUpdate",
+    "ValidatedSql",
     "WebsiteIngestionRequest",
     "WebsiteIngestionResult",
 ]

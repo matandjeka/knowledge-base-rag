@@ -72,6 +72,12 @@ def _locator(evidence: Evidence) -> str:
         return evidence.source_uri
     if evidence.source_type is SourceType.CSV and evidence.row_id:
         return f"row {evidence.row_id}"
+    if evidence.source_type is SourceType.DATABASE and evidence.table_name:
+        if evidence.row_id:
+            return f"table {evidence.table_name}, record {evidence.row_id}"
+        fingerprint = evidence.metadata.get("query_fingerprint")
+        suffix = f", query {str(fingerprint)[:12]}" if fingerprint else ""
+        return f"table {evidence.table_name}{suffix}"
     raise RetrievalError("Retrieved evidence has no source-specific citation locator")
 
 

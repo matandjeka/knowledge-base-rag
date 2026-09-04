@@ -29,6 +29,7 @@ class QueryService:
         fusion_retriever: FusionRetriever | None = None,
         reranking_service: RerankingService | None = None,
         reranking_candidate_pool_size: int = 30,
+        database_retriever: Retriever | None = None,
     ) -> None:
         self._repository = repository
         self._retriever = retriever
@@ -43,6 +44,7 @@ class QueryService:
         self._fusion_retriever = fusion_retriever
         self._reranking_service = reranking_service
         self._reranking_candidate_pool_size = reranking_candidate_pool_size
+        self._database_retriever = database_retriever
 
     async def query(self, request: QueryRequest) -> QueryResponse:
         """Retrieve evidence and return citations or an insufficient-evidence response."""
@@ -72,7 +74,14 @@ class QueryService:
                     request.question, evidence, top_k=top_k
                 )
             return await self._build_response(request.question, evidence)
-        if request.retrieval_mode is RetrievalMode.GRAPH:
+        if request.retrieval_mode is RetrievalMode.SQL:
+            if self._database_retriever is None:
+                raise RetrievalError(
+                    "SQL retrieval requires OPENAI_API_KEY and SQL_GENERATION_MODEL"
+                )
+            retriever = self._database_retriever
+            minimum_score = 0.0
+        elif request.retrieval_mode is RetrievalMode.GRAPH:
             if self._graph_retriever is None:
                 raise GraphIndexNotFoundError("Graph retrieval is not configured")
             retriever = self._graph_retriever

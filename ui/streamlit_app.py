@@ -191,6 +191,132 @@ with st.sidebar:
                 ingestion_status.update(label="API unavailable", state="error")
                 st.error("Could not reach the ingestion API. Retry after the API is running.")
 
+    st.divider()
+    with st.expander("Connect PostgreSQL"):
+        database_name = st.text_input("Source name", key="database_source_name")
+        database_secret = st.text_input(
+            "Connection secret environment variable",
+            placeholder="SALES_DATABASE_URL",
+            help="The API reads the connection URL from this environment variable.",
+        )
+        database_isolation = st.radio(
+            "Tenant isolation",
+            ["Dedicated database/schema", "Shared tables"],
+        )
+        shared_database = database_isolation == "Shared tables"
+        table_specs = st.text_area(
+            "Allowed tables",
+            placeholder=(
+                "public.sales:workspace_id\npublic.regions:workspace_id"
+                if shared_database
+                else "public.sales\npublic.regions"
+            ),
+            help=("One schema.table per line. Append :tenant_column for shared tables."),
+        )
+        if st.button(
+            "Connect database",
+            type="primary",
+            use_container_width=True,
+            disabled=not (database_name and database_secret and table_specs),
+        ):
+            tables: list[dict[str, str]] = []
+            invalid_table = False
+            for raw_spec in table_specs.splitlines():
+                spec = raw_spec.strip()
+                if not spec:
+                    continue
+                table_part, separator, tenant_column = spec.partition(":")
+                schema_name, dot, table_name = table_part.partition(".")
+                if not dot:
+                    table_name = schema_name
+                    schema_name = ""
+                if shared_database and (not separator or not tenant_column.strip()):
+                    invalid_table = True
+                    break
+                table: dict[str, str] = {"table_name": table_name.strip()}
+                if schema_name.strip():
+                    table["schema_name"] = schema_name.strip()
+                if shared_database:
+                    table["tenant_column"] = tenant_column.strip()
+                tables.append(table)
+            if invalid_table or not tables:
+                st.error("Shared table entries must include :tenant_column.")
+            else:
+                try:
+                    response = httpx.post(
+                        f"{settings.api_base_url}/sources/database",
+                        json={
+                            "workspace_id": workspace_id,
+                            "name": database_name,
+                            "secret_env_var": database_secret,
+                            "dialect": "postgresql",
+                            "isolation_mode": "shared" if shared_database else "dedicated",
+                            "tables": tables,
+                        },
+                        timeout=30,
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+                    st.success(
+                        f"Connected {result['source']['name']} with "
+                        f"{len(result['tables'])} approved table(s)"
+                    )
+                except httpx.HTTPStatusError as error:
+                    detail = error.response.json().get(
+                        "detail", "The API rejected the database source"
+                    )
+                    st.error(str(detail))
+                except httpx.RequestError:
+                    st.error("Could not reach the API.")
+
 st.subheader("Ask your knowledge base")
-st.chat_input("Add and index a source before asking a question", disabled=True)
-st.info("The project foundation is ready. Retrieval capabilities are coming next.")
+try:
+    source_response = httpx.get(
+        f"{settings.api_base_url}/sources",
+        params={"workspace_id": workspace_id},
+        timeout=5,
+    )
+    source_response.raise_for_status()
+    database_sources = [
+        source
+        for source in source_response.json()
+        if source["config"]["source_type"] == "database" and source["status"] == "ready"
+    ]
+except (httpx.HTTPStatusError, httpx.RequestError):
+    database_sources = []
+
+if database_sources:
+    database_by_label = {
+        f"{source['name']} ({source['source_id'][:8]})": source for source in database_sources
+    }
+    selected_database_label = st.selectbox("Database source", list(database_by_label))
+    sql_question = st.chat_input("Ask an aggregation or filtering question")
+    if sql_question:
+        selected_database = database_by_label[selected_database_label]
+        with st.chat_message("user"):
+            st.write(sql_question)
+        try:
+            response = httpx.post(
+                f"{settings.api_base_url}/query",
+                json={
+                    "workspace_id": workspace_id,
+                    "question": sql_question,
+                    "source_ids": [selected_database["source_id"]],
+                    "retrieval_mode": "sql",
+                },
+                timeout=60,
+            )
+            response.raise_for_status()
+            result = response.json()
+            with st.chat_message("assistant"):
+                st.write(result["answer"])
+                for citation in result["citations"]:
+                    st.caption(f"[{citation['citation_id']}] {citation['locator']}")
+        except httpx.HTTPStatusError as error:
+            detail = error.response.json().get("detail", "The SQL query was rejected")
+            st.error(str(detail))
+        except httpx.RequestError:
+            st.error("Could not reach the query API.")
+else:
+    st.chat_input("Connect a database source before asking a SQL question", disabled=True)
+    st.info("Connect an approved PostgreSQL source to enable structured retrieval.")

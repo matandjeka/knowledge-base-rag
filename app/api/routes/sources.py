@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 
 from app.api.dependencies import (
     get_csv_ingestion_service,
+    get_database_registration_service,
     get_pdf_ingestion_service,
     get_source_repository,
     get_source_storage,
@@ -16,18 +17,23 @@ from app.api.dependencies import (
 from app.core.config import get_settings
 from app.core.exceptions import (
     CsvValidationError,
+    DatabaseConfigurationError,
+    DatabaseExecutionError,
     IndexingError,
     IngestionError,
     PdfValidationError,
     SourceNotFoundError,
     WebsiteValidationError,
 )
+from app.database import DatabaseRegistrationService
 from app.ingestion.csv_service import CsvIngestionService
 from app.ingestion.service import PdfIngestionService
 from app.ingestion.website_service import WebsiteIngestionService
 from app.models import (
     CsvIngestionResult,
     CsvPreviewResult,
+    DatabaseSourceRequest,
+    DatabaseSourceResult,
     NormalizedDocument,
     PdfIngestionResult,
     Source,
@@ -54,6 +60,20 @@ WorkspaceQuery = Annotated[
     str,
     Query(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
 ]
+
+
+@router.post("/database", response_model=DatabaseSourceResult, status_code=status.HTTP_201_CREATED)
+async def add_database(
+    request: DatabaseSourceRequest,
+    service: Annotated[DatabaseRegistrationService, Depends(get_database_registration_service)],
+) -> DatabaseSourceResult:
+    """Verify and register one credential-safe relational database source."""
+    try:
+        return await service.register(request)
+    except (DatabaseConfigurationError, DatabaseExecutionError, ValueError) as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
+        ) from error
 
 
 @router.post("/pdf", response_model=PdfIngestionResult, status_code=status.HTTP_201_CREATED)
