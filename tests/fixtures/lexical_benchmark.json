@@ -1,0 +1,44 @@
+[
+  {
+    "key": "HR-402",
+    "source_type": "pdf",
+    "content": "Policy HR-402 requires annual access reviews for privileged accounts.",
+    "question": "What does HR-402 require?",
+    "page_number": 4
+  },
+  {
+    "key": "FIN-997A",
+    "source_type": "pdf",
+    "content": "Control FIN-997A requires two approvals before a wire transfer is released.",
+    "question": "What is required by FIN-997A?",
+    "page_number": 9
+  },
+  {
+    "key": "API-GW-17",
+    "source_type": "website",
+    "content": "Service API-GW-17 owns authentication enforcement at the external gateway.",
+    "question": "What does API-GW-17 own?",
+    "source_uri": "https://example.test/services/api-gw-17"
+  },
+  {
+    "key": "SRE-X9",
+    "source_type": "website",
+    "content": "Runbook SRE-X9 directs responders to isolate the failed regional queue.",
+    "question": "What does SRE-X9 direct responders to do?",
+    "source_uri": "https://example.test/runbooks/sre-x9"
+  },
+  {
+    "key": "SKU_88Z",
+    "source_type": "csv",
+    "content": "SKU_88Z | replacement filter | warehouse north",
+    "question": "Where is SKU_88Z stored?",
+    "row_id": "inventory-14"
+  },
+  {
+    "key": "CN-2048",
+    "source_type": "csv",
+    "content": "CN-2048 | renewal date | 2028-03-31",
+    "question": "What is the renewal date for CN-2048?",
+    "row_id": "contract-22"
+  }
+]

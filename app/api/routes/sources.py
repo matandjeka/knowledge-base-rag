@@ -172,7 +172,7 @@ async def index_source(
     repository: Annotated[InMemorySourceRepository, Depends(get_source_repository)],
     indexer: Annotated[VectorIndexingService, Depends(get_vector_indexing_service)],
 ) -> SourceIndexResult:
-    """Explicitly rebuild the vector index for a source's workspace."""
+    """Explicitly rebuild retrieval indexes for a source's workspace."""
     try:
         await repository.get(workspace_id, source_id)
         metadata = await indexer.rebuild(workspace_id, source_id)

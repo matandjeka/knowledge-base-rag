@@ -7,6 +7,7 @@ from app.core.exceptions import IndexingError
 from app.models import NormalizedDocument, SourceStatus
 from app.repositories import SourceRepository
 from app.retrieval.embedding import EmbeddingService
+from app.retrieval.lexical import LocalLexicalStore
 from app.retrieval.sentence_window import build_sentence_window_documents
 from app.retrieval.vector_store import (
     VectorIndexKind,
@@ -44,12 +45,14 @@ class VectorIndexingService:
         vector_store: VectorStore,
         *,
         sentence_window_radius: int = 2,
+        lexical_store: LocalLexicalStore | None = None,
     ) -> None:
         self._repository = repository
         self._storage = storage
         self._embeddings = embeddings
         self._vector_store = vector_store
         self._sentence_window_radius = sentence_window_radius
+        self._lexical_store = lexical_store
 
     async def rebuild(self, workspace_id: str, source_id: UUID) -> VectorIndexMetadata:
         """Prepare and activate a workspace generation."""
@@ -95,8 +98,16 @@ class VectorIndexingService:
             model_name=self._embeddings.model_name,
             dimension=self._embeddings.dimension,
         )
+        if self._lexical_store is not None:
+            await self._lexical_store.prepare(
+                workspace_id,
+                documents,
+                generation_id=generation.generation_id,
+            )
         return generation.indexes[VectorIndexKind.VECTOR]
 
     async def activate(self, workspace_id: str, generation_id: UUID) -> None:
         """Atomically publish a prepared generation."""
+        if self._lexical_store is not None:
+            await self._lexical_store.activate(workspace_id, generation_id)
         await self._vector_store.activate(workspace_id, generation_id)

@@ -58,12 +58,13 @@ cleanup after a successful activation. It never creates or deletes the configure
 
 ## Retrieval modes
 
-Every ingestion rebuilds two representations under one atomically activated workspace
-generation:
+Every ingestion rebuilds three representations under one coordinated workspace generation:
 
 - `vector` searches the existing normalized chunks and remains the default.
 - `sentence_window` searches individual sentences, then returns the matched sentence with its
   neighboring context.
+- `lexical` uses a durable local BM25 index for exact identifiers, acronyms, policy numbers, and
+  uncommon terminology.
 
 Select sentence-window retrieval per request:
 
@@ -80,6 +81,48 @@ defaults to `2`. Changing it requires rebuilding the source index. Index generat
 before sentence-window support must also be rebuilt; the API reports a clear missing-index error
 until then. Windows never cross a normalized document boundary, so source citation locators remain
 unchanged.
+
+Select lexical retrieval explicitly when exact terminology matters:
+
+```json
+{
+  "workspace_id": "example-workspace",
+  "question": "What does policy HR-402 require?",
+  "retrieval_mode": "lexical"
+}
+```
+
+`BM25_K1` and `BM25_B` configure BM25 saturation and length normalization.
+`LEXICAL_TITLE_BOOST` gives matching title terms a modest additional weight, and
+`LEXICAL_MIN_SCORE` controls the independent raw-score floor. BM25 raw scores are not comparable
+to vector similarities; fusion therefore combines ranks rather than these raw scores.
+
+## Fusion retrieval
+
+Fusion queries concurrently retrieve a larger candidate pool, collapse results that represent the
+same underlying passage, and return one deterministic list. Standard reciprocal rank fusion is the
+default, so incomparable vector, graph, and BM25 raw scores are never mixed directly.
+
+```json
+{
+  "workspace_id": "example-workspace",
+  "question": "What does policy HR-402 require?",
+  "retrieval_mode": "fusion",
+  "fusion_retrievers": ["vector", "sentence_window", "lexical"],
+  "fusion_strategy": "rrf"
+}
+```
+
+Omitting `fusion_retrievers` uses vector, sentence-window, and lexical retrieval. Graph must be
+requested explicitly because its workspace index is optional. At least two distinct retrievers are
+required. If any requested retriever or index fails, the fused query fails rather than silently
+changing strategy.
+
+Set `fusion_strategy` to `weighted_rrf` to apply the configured retriever weights. Active weights
+are normalized before use. `FUSION_RRF_K` controls the rank constant and
+`FUSION_CANDIDATE_MULTIPLIER` controls the per-retriever candidate depth, capped by
+`RETRIEVAL_MAX_TOP_K`. Each fused evidence item exposes its original ranks, effective weights, and
+score contributions in `metadata.fusion_contributions`.
 
 ## Knowledge graph retrieval
 

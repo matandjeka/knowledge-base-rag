@@ -76,7 +76,7 @@ def _locator(evidence: Evidence) -> str:
 
 
 def _graph_supports(evidence: Evidence) -> list[GraphPathSupport]:
-    if evidence.retriever != "graph":
+    if evidence.retriever != "graph" and "citation_supports" not in evidence.metadata:
         return []
     payload = evidence.metadata.get("citation_supports")
     if not isinstance(payload, list):
