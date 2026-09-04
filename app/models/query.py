@@ -52,12 +52,17 @@ class QueryRequest(BaseModel):
     retrieval_mode: RetrievalMode = RetrievalMode.VECTOR
     fusion_retrievers: list[RetrievalMode] | None = None
     fusion_strategy: FusionStrategy | None = None
+    rerank: bool = False
 
     @model_validator(mode="after")
     def validate_fusion_options(self) -> "QueryRequest":
         """Require coherent fusion-only request options."""
         if self.retrieval_mode is not RetrievalMode.FUSION:
-            if self.fusion_retrievers is not None or self.fusion_strategy is not None:
+            if (
+                self.fusion_retrievers is not None
+                or self.fusion_strategy is not None
+                or self.rerank
+            ):
                 raise ValueError("Fusion options require retrieval_mode='fusion'")
             return self
         retrievers = self.fusion_retrievers

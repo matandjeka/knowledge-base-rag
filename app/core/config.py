@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     fusion_sentence_window_weight: float = Field(default=0.25, ge=0)
     fusion_graph_weight: float = Field(default=0.25, ge=0)
     fusion_lexical_weight: float = Field(default=0.10, ge=0)
+    reranker_model_name: str = "BAAI/bge-reranker-base"
+    reranker_batch_size: int = Field(default=16, ge=1, le=256)
+    reranker_max_length: int = Field(default=512, ge=32, le=8192)
+    reranker_device: Literal["auto", "cpu", "cuda", "mps"] = "auto"
+    reranking_candidate_pool_size: int = Field(default=30, ge=2, le=100)
+    reranking_max_per_source: int = Field(default=2, ge=1, le=20)
     vector_store_backend: Literal["faiss", "pinecone"] = "faiss"
     pinecone_api_key: SecretStr | None = None
     pinecone_index_name: str | None = Field(default=None, min_length=1)

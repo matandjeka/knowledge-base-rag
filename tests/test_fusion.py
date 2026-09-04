@@ -6,8 +6,10 @@ from time import perf_counter
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
+from app.api.dependencies import get_query_service
 from app.citations.builder import build_citations
 from app.core.exceptions import IndexNotFoundError
 from app.evaluation.retrieval_comparison import (
@@ -16,6 +18,7 @@ from app.evaluation.retrieval_comparison import (
     score_retrieval_runs,
 )
 from app.generation.extractive import ExtractiveGenerator
+from app.main import app
 from app.models import (
     Evidence,
     FusionStrategy,
@@ -208,6 +211,22 @@ def test_weighted_rrf_normalizes_active_weights_and_orders_deterministically() -
     assert fused[0].raw_score == pytest.approx(0.8 / 61 + 0.2 / 62)
 
 
+def test_weighted_rrf_discards_zero_contribution_candidates() -> None:
+    fused = fuse_ranked_results(
+        "workspace",
+        {
+            RetrievalMode.VECTOR: [],
+            RetrievalMode.LEXICAL: [_evidence(RetrievalMode.LEXICAL, uuid4())],
+        },
+        top_k=1,
+        strategy=FusionStrategy.WEIGHTED_RRF,
+        rrf_k=60,
+        weights={RetrievalMode.VECTOR: 1, RetrievalMode.LEXICAL: 0},
+    )
+
+    assert fused == []
+
+
 @pytest.mark.asyncio
 async def test_fusion_retriever_expands_candidate_depth_filters_and_uses_thresholds() -> None:
     source_id = uuid4()
@@ -235,6 +254,65 @@ async def test_fusion_retriever_expands_candidate_depth_filters_and_uses_thresho
     assert len(evidence) == 2
     assert vector.calls == [(5, 0.7, frozenset({source_id}))]
     assert lexical.calls == [(5, 0.2, frozenset({source_id}))]
+
+
+@pytest.mark.asyncio
+async def test_fusion_retrievers_execute_concurrently() -> None:
+    started = 0
+    both_started = asyncio.Event()
+
+    class CoordinatedRetriever(StubRetriever):
+        async def retrieve(
+            self,
+            workspace_id: str,
+            query: str,
+            *,
+            top_k: int,
+            source_ids: frozenset[UUID],
+            min_similarity: float,
+        ) -> list[Evidence]:
+            nonlocal started
+            started += 1
+            if started == 2:
+                both_started.set()
+            await asyncio.wait_for(both_started.wait(), timeout=0.5)
+            return await super().retrieve(
+                workspace_id,
+                query,
+                top_k=top_k,
+                source_ids=source_ids,
+                min_similarity=min_similarity,
+            )
+
+    fusion = FusionRetriever(
+        {
+            RetrievalMode.VECTOR: CoordinatedRetriever([_evidence(RetrievalMode.VECTOR, uuid4())]),
+            RetrievalMode.LEXICAL: CoordinatedRetriever(
+                [_evidence(RetrievalMode.LEXICAL, uuid4())]
+            ),
+        },
+        max_top_k=20,
+        candidate_multiplier=3,
+        rrf_k=60,
+        weights=_weights(),
+        min_similarity=0.7,
+        lexical_min_score=0,
+    )
+
+    result = await asyncio.wait_for(
+        fusion.retrieve(
+            "workspace",
+            "question",
+            top_k=2,
+            source_ids=frozenset(),
+            modes=(RetrievalMode.VECTOR, RetrievalMode.LEXICAL),
+            strategy=FusionStrategy.RRF,
+        ),
+        timeout=1,
+    )
+
+    assert started == 2
+    assert len(result) == 2
 
 
 @pytest.mark.asyncio
@@ -358,6 +436,48 @@ async def test_query_service_returns_fused_response() -> None:
     assert len(response.evidence) == 1
     assert response.evidence[0].retriever == "fusion"
     assert response.citations[0].source_id == source.source_id
+
+
+@pytest.mark.asyncio
+async def test_query_endpoint_accepts_fusion_contract_and_rejects_invalid_options() -> None:
+    captured: list[QueryRequest] = []
+
+    class StubQueryService:
+        async def query(self, request: QueryRequest) -> object:
+            captured.append(request)
+            from app.models import QueryResponse
+
+            return QueryResponse(answer="No evidence", insufficient_evidence=True)
+
+    app.dependency_overrides[get_query_service] = lambda: StubQueryService()
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/query",
+                json={
+                    "workspace_id": "workspace",
+                    "question": "question",
+                    "retrieval_mode": "fusion",
+                    "fusion_retrievers": ["vector", "lexical"],
+                    "fusion_strategy": "weighted_rrf",
+                },
+            )
+            invalid = await client.post(
+                "/query",
+                json={
+                    "workspace_id": "workspace",
+                    "question": "question",
+                    "retrieval_mode": "vector",
+                    "fusion_strategy": "rrf",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert captured[0].retrieval_mode is RetrievalMode.FUSION
+    assert captured[0].fusion_strategy is FusionStrategy.WEIGHTED_RRF
+    assert invalid.status_code == 422
 
 
 def test_six_case_benchmark_fusion_outperforms_individual_rankings() -> None:

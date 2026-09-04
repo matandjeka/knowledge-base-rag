@@ -17,6 +17,7 @@ from app.ingestion.website import SafeHttpFetcher, WebsiteCrawler
 from app.ingestion.website_service import WebsiteIngestionService
 from app.models import RetrievalMode
 from app.repositories import InMemorySourceRepository
+from app.reranking.service import HuggingFaceCrossEncoderReranker, RerankingService
 from app.retrieval.base import Retriever
 from app.retrieval.embedding import HuggingFaceEmbeddingService
 from app.retrieval.fusion import FusionRetriever
@@ -118,6 +119,21 @@ def get_graph_indexing_service() -> GraphIndexingService:
 
 
 @lru_cache
+def get_reranking_service() -> RerankingService:
+    """Return the lazy local cross-encoder re-ranking service."""
+    settings = get_settings()
+    return RerankingService(
+        HuggingFaceCrossEncoderReranker(
+            model_name=settings.reranker_model_name,
+            batch_size=settings.reranker_batch_size,
+            max_length=settings.reranker_max_length,
+            device=settings.reranker_device,
+        ),
+        max_per_source=settings.reranking_max_per_source,
+    )
+
+
+@lru_cache
 def get_vector_indexing_service() -> VectorIndexingService:
     """Return the workspace vector-index orchestrator."""
     return VectorIndexingService(
@@ -196,7 +212,9 @@ def get_query_service() -> QueryService:
     sentence_window_retriever = SentenceWindowRetriever(get_embedding_service(), get_vector_store())
     graph_retriever = GraphRetriever(get_graph_store(), max_hops=settings.graph_retrieval_max_hops)
     lexical_retriever = LexicalRetriever(
-        get_lexical_store(), title_boost=settings.lexical_title_boost
+        get_lexical_store(),
+        title_boost=settings.lexical_title_boost,
+        generation_provider=get_vector_store(),
     )
     retrievers: dict[RetrievalMode, Retriever] = {
         RetrievalMode.VECTOR: vector_retriever,
@@ -230,4 +248,6 @@ def get_query_service() -> QueryService:
         lexical_retriever=lexical_retriever,
         lexical_min_score=settings.lexical_min_score,
         fusion_retriever=fusion_retriever,
+        reranking_service=get_reranking_service(),
+        reranking_candidate_pool_size=settings.reranking_candidate_pool_size,
     )

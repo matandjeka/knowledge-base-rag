@@ -134,6 +134,8 @@ def fuse_ranked_results(
             for candidate in sorted(unique_candidates, key=lambda item: item.mode.value)
         ]
         score = sum(item.contribution for item in contributions)
+        if score <= 0:
+            continue
         representative = _representative(unique_candidates)
         metadata = {
             **representative.metadata,

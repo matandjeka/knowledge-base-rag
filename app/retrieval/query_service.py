@@ -5,6 +5,7 @@ from app.core.exceptions import GraphIndexNotFoundError, RetrievalError
 from app.generation.extractive import Generator
 from app.models import Evidence, FusionStrategy, QueryRequest, QueryResponse, RetrievalMode
 from app.repositories import SourceRepository
+from app.reranking.service import RerankingService
 from app.retrieval.base import Retriever
 from app.retrieval.fusion import DEFAULT_FUSION_RETRIEVERS, FusionRetriever
 
@@ -26,6 +27,8 @@ class QueryService:
         lexical_retriever: Retriever | None = None,
         lexical_min_score: float = 0.0,
         fusion_retriever: FusionRetriever | None = None,
+        reranking_service: RerankingService | None = None,
+        reranking_candidate_pool_size: int = 30,
     ) -> None:
         self._repository = repository
         self._retriever = retriever
@@ -38,6 +41,8 @@ class QueryService:
         self._lexical_retriever = lexical_retriever
         self._lexical_min_score = lexical_min_score
         self._fusion_retriever = fusion_retriever
+        self._reranking_service = reranking_service
+        self._reranking_candidate_pool_size = reranking_candidate_pool_size
 
     async def query(self, request: QueryRequest) -> QueryResponse:
         """Retrieve evidence and return citations or an insufficient-evidence response."""
@@ -49,14 +54,23 @@ class QueryService:
         if request.retrieval_mode is RetrievalMode.FUSION:
             if self._fusion_retriever is None:
                 raise RetrievalError("Fusion retrieval is not configured")
+            candidate_top_k = (
+                max(top_k, self._reranking_candidate_pool_size) if request.rerank else top_k
+            )
             evidence = await self._fusion_retriever.retrieve(
                 request.workspace_id,
                 request.question,
-                top_k=top_k,
+                top_k=candidate_top_k,
                 source_ids=frozenset(request.source_ids),
                 modes=tuple(request.fusion_retrievers or DEFAULT_FUSION_RETRIEVERS),
                 strategy=request.fusion_strategy or FusionStrategy.RRF,
             )
+            if request.rerank:
+                if self._reranking_service is None:
+                    raise RetrievalError("Re-ranking is not configured")
+                evidence = await self._reranking_service.rerank(
+                    request.question, evidence, top_k=top_k
+                )
             return await self._build_response(request.question, evidence)
         if request.retrieval_mode is RetrievalMode.GRAPH:
             if self._graph_retriever is None:

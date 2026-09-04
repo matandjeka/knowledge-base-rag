@@ -210,6 +210,21 @@ class PineconeVectorStore:
         except Exception as error:
             raise IndexingError("Pinecone generation activation failed") from error
 
+    async def active_generation(self, workspace_id: str) -> UUID:
+        """Return the currently activated Pinecone generation."""
+        self._validate_workspace(workspace_id)
+        await self._ensure_compatible(self._dimension)
+        try:
+            async with self._index_factory() as index:
+                generation = await self._active_generation(index, workspace_id, required=True)
+        except IndexNotFoundError:
+            raise
+        except Exception as error:
+            raise IndexingError("Pinecone active-generation lookup failed") from error
+        if generation is None:
+            raise IndexNotFoundError("No vector index exists for this workspace")
+        return generation
+
     async def search(
         self,
         workspace_id: str,

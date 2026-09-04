@@ -110,6 +110,10 @@ class VectorStore(Protocol):
         """Atomically make a prepared generation current."""
         ...
 
+    async def active_generation(self, workspace_id: str) -> UUID:
+        """Return the currently activated workspace generation."""
+        ...
+
     async def search(
         self,
         workspace_id: str,
@@ -192,6 +196,11 @@ class FaissVectorStore:
         async with self._locks[workspace_id]:
             await asyncio.to_thread(self._activate_generation, workspace_id, generation_id)
 
+    async def active_generation(self, workspace_id: str) -> UUID:
+        """Return the currently activated local generation."""
+        async with self._locks[workspace_id]:
+            return await asyncio.to_thread(self._active_generation, workspace_id)
+
     async def search(
         self,
         workspace_id: str,
@@ -273,13 +282,7 @@ class FaissVectorStore:
         index_kind: VectorIndexKind,
     ) -> tuple[VectorSearchMatch, ...]:
         workspace_directory = self._workspace_directory(workspace_id)
-        current = workspace_directory / "CURRENT"
-        if not current.is_file():
-            raise IndexNotFoundError("No vector index exists for this workspace")
-        try:
-            generation_id = UUID(current.read_text().strip())
-        except (ValueError, OSError) as error:
-            raise IndexingError("The workspace vector-index pointer is invalid") from error
+        generation_id = self._active_generation(workspace_id)
         directory = workspace_directory / "generations" / str(generation_id)
         representation_directory = directory / index_kind.value
         index_path = representation_directory / "index.faiss"
@@ -326,6 +329,15 @@ class FaissVectorStore:
             if len(matches) == top_k:
                 break
         return tuple(matches)
+
+    def _active_generation(self, workspace_id: str) -> UUID:
+        current = self._workspace_directory(workspace_id) / "CURRENT"
+        if not current.is_file():
+            raise IndexNotFoundError("No vector index exists for this workspace")
+        try:
+            return UUID(current.read_text().strip())
+        except (ValueError, OSError) as error:
+            raise IndexingError("The workspace vector-index pointer is invalid") from error
 
     def _workspace_directory(self, workspace_id: str) -> Path:
         if not workspace_id or any(

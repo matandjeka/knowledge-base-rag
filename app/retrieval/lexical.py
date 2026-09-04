@@ -8,6 +8,7 @@ import unicodedata
 from collections import Counter, defaultdict
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Protocol
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
@@ -18,6 +19,14 @@ from app.models import Evidence, NormalizedDocument
 _DOCUMENTS_ADAPTER = TypeAdapter(list[NormalizedDocument])
 _TOKEN_PATTERN = re.compile(r"[^\W_]+(?:[-_][^\W_]+)*", re.UNICODE)
 _FORMAT_VERSION = 1
+
+
+class ActiveGenerationProvider(Protocol):
+    """Expose the generation currently used by another retrieval store."""
+
+    async def active_generation(self, workspace_id: str) -> UUID:
+        """Return one workspace's active generation identifier."""
+        ...
 
 
 def tokenize_lexical(text: str) -> tuple[str, ...]:
@@ -96,6 +105,19 @@ class LocalLexicalStore:
         async with self._locks[workspace_id]:
             await asyncio.to_thread(self._activate_generation, workspace_id, generation_id)
 
+    async def active_generation(self, workspace_id: str) -> UUID:
+        """Return the currently activated lexical generation."""
+        async with self._locks[workspace_id]:
+            return await asyncio.to_thread(self._active_generation, workspace_id)
+
+    async def restore_activation(self, workspace_id: str, generation_id: UUID | None) -> None:
+        """Restore a prior pointer, or remove it when no prior generation existed."""
+        async with self._locks[workspace_id]:
+            if generation_id is None:
+                await asyncio.to_thread(self._clear_activation, workspace_id)
+            else:
+                await asyncio.to_thread(self._activate_generation, workspace_id, generation_id)
+
     async def search(
         self,
         workspace_id: str,
@@ -105,6 +127,7 @@ class LocalLexicalStore:
         source_ids: frozenset[UUID],
         min_score: float,
         title_boost: float,
+        expected_generation_id: UUID | None = None,
     ) -> tuple[LexicalSearchMatch, ...]:
         """Score the current workspace generation with BM25."""
         if top_k < 1:
@@ -122,6 +145,7 @@ class LocalLexicalStore:
                 source_ids,
                 min_score,
                 title_boost,
+                expected_generation_id,
             )
 
     def _write_generation(
@@ -181,6 +205,7 @@ class LocalLexicalStore:
         source_ids: frozenset[UUID],
         min_score: float,
         title_boost: float,
+        expected_generation_id: UUID | None,
     ) -> tuple[LexicalSearchMatch, ...]:
         workspace_directory = self._workspace_directory(workspace_id)
         current = workspace_directory / "CURRENT"
@@ -198,6 +223,10 @@ class LocalLexicalStore:
             raise IndexingError(
                 "The current lexical-index generation is unreadable; rebuild the source index"
             ) from error
+        if expected_generation_id is not None and generation_id != expected_generation_id:
+            raise IndexingError(
+                "Lexical and vector indexes reference different active generations; rebuild indexes"
+            )
         if metadata.generation_id != generation_id or metadata.format_version != _FORMAT_VERSION:
             raise IndexingError("Lexical-index generation metadata is incompatible")
         if _sha256(index_payload) != metadata.index_sha256:
@@ -281,13 +310,38 @@ class LocalLexicalStore:
             raise ValueError("Lexical index path escapes the configured data directory")
         return directory
 
+    def _active_generation(self, workspace_id: str) -> UUID:
+        current = self._workspace_directory(workspace_id) / "CURRENT"
+        if not current.is_file():
+            raise IndexNotFoundError("No lexical index exists for this workspace")
+        try:
+            return UUID(current.read_text().strip())
+        except (ValueError, OSError) as error:
+            raise IndexingError("The workspace lexical-index pointer is invalid") from error
+
+    def _clear_activation(self, workspace_id: str) -> None:
+        current = self._workspace_directory(workspace_id) / "CURRENT"
+        try:
+            current.unlink(missing_ok=True)
+        except OSError as error:
+            raise IndexingError(
+                "The lexical-index activation pointer could not be cleared"
+            ) from error
+
 
 class LexicalRetriever:
     """Map workspace BM25 matches into canonical evidence."""
 
-    def __init__(self, store: LocalLexicalStore, *, title_boost: float = 0.5) -> None:
+    def __init__(
+        self,
+        store: LocalLexicalStore,
+        *,
+        title_boost: float = 0.5,
+        generation_provider: ActiveGenerationProvider | None = None,
+    ) -> None:
         self._store = store
         self._title_boost = title_boost
+        self._generation_provider = generation_provider
 
     async def retrieve(
         self,
@@ -299,6 +353,11 @@ class LexicalRetriever:
         min_similarity: float,
     ) -> list[Evidence]:
         """Return canonical lexical evidence ordered by BM25 score."""
+        expected_generation_id = (
+            await self._generation_provider.active_generation(workspace_id)
+            if self._generation_provider is not None
+            else None
+        )
         matches = await self._store.search(
             workspace_id,
             query,
@@ -306,6 +365,7 @@ class LexicalRetriever:
             source_ids=source_ids,
             min_score=min_similarity,
             title_boost=self._title_boost,
+            expected_generation_id=expected_generation_id,
         )
         return [
             Evidence(
