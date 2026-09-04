@@ -15,9 +15,13 @@ from app.ingestion.pdf import PdfConnector
 from app.ingestion.service import PdfIngestionService
 from app.ingestion.website import SafeHttpFetcher, WebsiteCrawler
 from app.ingestion.website_service import WebsiteIngestionService
+from app.models import RetrievalMode
 from app.repositories import InMemorySourceRepository
+from app.retrieval.base import Retriever
 from app.retrieval.embedding import HuggingFaceEmbeddingService
+from app.retrieval.fusion import FusionRetriever
 from app.retrieval.indexing import VectorIndexingService
+from app.retrieval.lexical import LexicalRetriever, LocalLexicalStore
 from app.retrieval.pinecone_store import PineconeVectorStore
 from app.retrieval.query_service import QueryService
 from app.retrieval.sentence_window import SentenceWindowRetriever
@@ -84,6 +88,13 @@ def get_graph_store() -> LocalGraphStore:
 
 
 @lru_cache
+def get_lexical_store() -> LocalLexicalStore:
+    """Return the durable local BM25 store."""
+    settings = get_settings()
+    return LocalLexicalStore(settings.data_dir, k1=settings.bm25_k1, b=settings.bm25_b)
+
+
+@lru_cache
 def get_graph_indexing_service() -> GraphIndexingService:
     """Return graph indexing only when its external extractor is configured."""
     settings = get_settings()
@@ -115,6 +126,7 @@ def get_vector_indexing_service() -> VectorIndexingService:
         get_embedding_service(),
         get_vector_store(),
         sentence_window_radius=get_settings().sentence_window_radius,
+        lexical_store=get_lexical_store(),
     )
 
 
@@ -180,15 +192,42 @@ def get_website_ingestion_service() -> WebsiteIngestionService:
 def get_query_service() -> QueryService:
     """Return the configured baseline query orchestrator."""
     settings = get_settings()
+    vector_retriever = VectorRetriever(get_embedding_service(), get_vector_store())
+    sentence_window_retriever = SentenceWindowRetriever(get_embedding_service(), get_vector_store())
+    graph_retriever = GraphRetriever(get_graph_store(), max_hops=settings.graph_retrieval_max_hops)
+    lexical_retriever = LexicalRetriever(
+        get_lexical_store(), title_boost=settings.lexical_title_boost
+    )
+    retrievers: dict[RetrievalMode, Retriever] = {
+        RetrievalMode.VECTOR: vector_retriever,
+        RetrievalMode.SENTENCE_WINDOW: sentence_window_retriever,
+        RetrievalMode.GRAPH: graph_retriever,
+        RetrievalMode.LEXICAL: lexical_retriever,
+    }
+    fusion_retriever = FusionRetriever(
+        retrievers,
+        max_top_k=settings.retrieval_max_top_k,
+        candidate_multiplier=settings.fusion_candidate_multiplier,
+        rrf_k=settings.fusion_rrf_k,
+        weights={
+            RetrievalMode.VECTOR: settings.fusion_vector_weight,
+            RetrievalMode.SENTENCE_WINDOW: settings.fusion_sentence_window_weight,
+            RetrievalMode.GRAPH: settings.fusion_graph_weight,
+            RetrievalMode.LEXICAL: settings.fusion_lexical_weight,
+        },
+        min_similarity=settings.retrieval_min_similarity,
+        lexical_min_score=settings.lexical_min_score,
+    )
     return QueryService(
         get_source_repository(),
-        VectorRetriever(get_embedding_service(), get_vector_store()),
-        SentenceWindowRetriever(get_embedding_service(), get_vector_store()),
+        vector_retriever,
+        sentence_window_retriever,
         ExtractiveGenerator(),
         default_top_k=settings.retrieval_top_k,
         max_top_k=settings.retrieval_max_top_k,
         min_similarity=settings.retrieval_min_similarity,
-        graph_retriever=GraphRetriever(
-            get_graph_store(), max_hops=settings.graph_retrieval_max_hops
-        ),
+        graph_retriever=graph_retriever,
+        lexical_retriever=lexical_retriever,
+        lexical_min_score=settings.lexical_min_score,
+        fusion_retriever=fusion_retriever,
     )

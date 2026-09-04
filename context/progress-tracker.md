@@ -1,16 +1,26 @@
 # Advanced Multi-Source Enterprise RAG — Progress Tracker
 
 ## Overall Status
-**Last Completed Implementation Phase:** Phase 7 — Knowledge Graph Retrieval
+**Last Reviewed:** September 4, 2026
 
-**Next Phase:** Phase 8 — Optional BM25 / Lexical Retriever (ready to architect)
+**Last Completed Implementation Phase:** Phase 9 — Fusion Layer
 
-**Last Phase With All Exit Criteria Satisfied:** Phase 7 — Knowledge Graph Retrieval
+**Next Phase:** Phase 10 — Re-ranking (ready to architect)
 
-Phases 2–7 now provide ingestion, atomically activated baseline and sentence-window indexes
-for FAISS/Pinecone, OpenAI-assisted knowledge-graph extraction, durable local graph generations,
-independently selectable vector/window/graph retrieval, grounded answers, and multi-source
-provenance. Advanced citation rendering and source inspection remain deferred to Phase 13.
+**Last Phase With All Exit Criteria Satisfied:** Phase 9 — Fusion Layer
+
+Phases 2–9 now provide ingestion, coordinated baseline, sentence-window, and lexical index
+generations for FAISS/Pinecone plus durable local BM25 storage, OpenAI-assisted knowledge-graph
+extraction, durable local graph generations, independently selectable or concurrently fused
+vector/window/graph/lexical retrieval, grounded answers, and multi-source provenance. Advanced
+citation rendering and source inspection remain deferred to Phase 13.
+
+**Build-plan alignment:** Phases 0–9 are complete. Phase 10 re-ranking has not started. Tracker
+sections are grouped by subsystem, so their section numbers do not map one-to-one to the phase
+numbers in `build-plan.md`.
+
+**Verification:** Ruff formatting and lint pass, mypy passes across 75 source files, and pytest
+reports `126 passed, 1 skipped`. The skipped test is the opt-in live OpenAI graph integration test.
 
 ## Status Legend
 - [ ] Not started
@@ -133,17 +143,31 @@ generation, and deterministic two-hop retrieval answers the committed five-case 
 complete edge-level citations across PDF, website, and CSV provenance.
 
 ## 10. Lexical Retrieval
-- [ ] BM25 index
-- [ ] BM25 retriever
-- [ ] Identifier query tests
+- [x] BM25 index
+- [x] BM25 retriever
+- [x] Identifier query tests
+
+**Implementation status:** Complete
+
+**Exit criteria:** Complete — durable workspace BM25 generations preserve exact identifiers and
+source locators, expose independently selectable lexical retrieval, and outperform vector-only
+retrieval on the committed six-case PDF, website, and CSV identifier benchmark for hit rate and
+MRR with complete citation accuracy.
 
 ## 11. Fusion
 - [x] Common retriever interface
-- [ ] Evidence normalization
-- [ ] De-duplication
-- [ ] Reciprocal Rank Fusion
-- [ ] Weighted fusion
-- [ ] Fusion tests
+- [x] Evidence normalization
+- [x] De-duplication
+- [x] Reciprocal Rank Fusion
+- [x] Weighted fusion
+- [x] Fusion tests
+
+**Implementation status:** Complete
+
+**Exit criteria:** Complete — fused queries concurrently retrieve from an explicit set of
+strategies, collapse candidates with stable canonical identities, and produce one deterministic
+RRF or weighted-RRF list. Every result exposes reconstructable per-retriever rank contributions,
+and a committed six-case benchmark verifies improved hit rate and MRR with complete citations.
 
 ## 12. Re-ranking
 - [ ] Cross-encoder model
@@ -194,8 +218,8 @@ complete edge-level citations across PDF, website, and CSV provenance.
 - [ ] Evaluation dashboard
 
 ## 17. Evaluation
-- [~] Golden question set (eight focused Phase 6–7 cases; 30–50 case suite deferred)
-- [~] Expected source labels (implemented for focused sentence-window and graph benchmarks)
+- [~] Golden question set (20 focused Phase 6–9 cases; 30–50 case suite deferred)
+- [~] Expected source labels (implemented for window, graph, lexical, and fusion benchmarks)
 - [ ] Recall@K
 - [ ] Precision@K
 - [x] MRR
@@ -209,7 +233,7 @@ complete edge-level citations across PDF, website, and CSV provenance.
 - [ ] Trace IDs
 - [x] Structured logs
 - [ ] Retriever timings
-- [ ] Fusion trace
+- [x] Fusion trace
 - [ ] Re-ranker trace
 - [ ] LLM token usage
 - [ ] User feedback capture

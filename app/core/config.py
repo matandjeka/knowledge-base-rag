@@ -44,6 +44,16 @@ class Settings(BaseSettings):
     retrieval_max_top_k: int = Field(default=20, ge=1, le=20)
     retrieval_min_similarity: float = Field(default=0.70, ge=-1, le=1)
     sentence_window_radius: int = Field(default=2, ge=0, le=10)
+    bm25_k1: float = Field(default=1.5, gt=0)
+    bm25_b: float = Field(default=0.75, ge=0, le=1)
+    lexical_title_boost: float = Field(default=0.5, ge=0)
+    lexical_min_score: float = Field(default=0.0, ge=0)
+    fusion_rrf_k: int = Field(default=60, ge=1)
+    fusion_candidate_multiplier: int = Field(default=3, ge=1, le=20)
+    fusion_vector_weight: float = Field(default=0.40, ge=0)
+    fusion_sentence_window_weight: float = Field(default=0.25, ge=0)
+    fusion_graph_weight: float = Field(default=0.25, ge=0)
+    fusion_lexical_weight: float = Field(default=0.10, ge=0)
     vector_store_backend: Literal["faiss", "pinecone"] = "faiss"
     pinecone_api_key: SecretStr | None = None
     pinecone_index_name: str | None = Field(default=None, min_length=1)
@@ -62,7 +72,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_vector_store_configuration(self) -> "Settings":
-        """Require cloud credentials only when Pinecone is selected."""
+        """Validate cross-field backend and fusion configuration."""
         if self.vector_store_backend == "pinecone":
             missing = [
                 name
@@ -75,6 +85,14 @@ class Settings(BaseSettings):
             ]
             if missing:
                 raise ValueError("Pinecone configuration is incomplete: " + ", ".join(missing))
+        if (
+            self.fusion_vector_weight
+            + self.fusion_sentence_window_weight
+            + self.fusion_graph_weight
+            + self.fusion_lexical_weight
+            <= 0
+        ):
+            raise ValueError("At least one fusion retriever weight must be positive")
         return self
 
 

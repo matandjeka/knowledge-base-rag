@@ -3,7 +3,7 @@
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.documents import Evidence
 from app.models.sources import SourceType
@@ -15,6 +15,29 @@ class RetrievalMode(StrEnum):
     VECTOR = "vector"
     SENTENCE_WINDOW = "sentence_window"
     GRAPH = "graph"
+    LEXICAL = "lexical"
+    FUSION = "fusion"
+
+
+class FusionStrategy(StrEnum):
+    """Supported rank-based candidate fusion algorithms."""
+
+    RRF = "rrf"
+    WEIGHTED_RRF = "weighted_rrf"
+
+
+class FusionContribution(BaseModel):
+    """Inspectable contribution from one retriever to fused evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    retriever: RetrievalMode
+    rank: int = Field(ge=1)
+    evidence_id: UUID
+    raw_score: float | None = None
+    normalized_score: float | None = Field(default=None, ge=0, le=1)
+    weight: float = Field(ge=0)
+    contribution: float = Field(ge=0)
 
 
 class QueryRequest(BaseModel):
@@ -27,6 +50,25 @@ class QueryRequest(BaseModel):
     top_k: int | None = Field(default=None, ge=1, le=20)
     source_ids: list[UUID] = Field(default_factory=list)
     retrieval_mode: RetrievalMode = RetrievalMode.VECTOR
+    fusion_retrievers: list[RetrievalMode] | None = None
+    fusion_strategy: FusionStrategy | None = None
+
+    @model_validator(mode="after")
+    def validate_fusion_options(self) -> "QueryRequest":
+        """Require coherent fusion-only request options."""
+        if self.retrieval_mode is not RetrievalMode.FUSION:
+            if self.fusion_retrievers is not None or self.fusion_strategy is not None:
+                raise ValueError("Fusion options require retrieval_mode='fusion'")
+            return self
+        retrievers = self.fusion_retrievers
+        if retrievers is not None:
+            if len(retrievers) < 2:
+                raise ValueError("Fused retrieval requires at least two retrievers")
+            if len(set(retrievers)) != len(retrievers):
+                raise ValueError("Fusion retrievers must be distinct")
+            if RetrievalMode.FUSION in retrievers:
+                raise ValueError("Fusion cannot include itself as a retriever")
+        return self
 
 
 class Citation(BaseModel):
@@ -41,7 +83,7 @@ class Citation(BaseModel):
     source_title: str | None = None
     excerpt: str = Field(min_length=1)
     locator: str = Field(min_length=1)
-    score: float = Field(ge=-1, le=1)
+    score: float
 
 
 class QueryResponse(BaseModel):

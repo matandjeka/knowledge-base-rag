@@ -1,0 +1,8 @@
+[
+  {"key":"policy","question":"Which policy governs privileged access?"},
+  {"key":"contract","question":"Which contract covers the renewal?"},
+  {"key":"product","question":"Which product owns the gateway?"},
+  {"key":"department","question":"Which department handles escalation?"},
+  {"key":"regulation","question":"Which regulation controls retention?"},
+  {"key":"project","question":"Which project includes the migration?"}
+]

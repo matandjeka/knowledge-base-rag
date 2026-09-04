@@ -29,7 +29,15 @@ from app.models.ingestion import (
     WebsiteIngestionRequest,
     WebsiteIngestionResult,
 )
-from app.models.query import Citation, QueryRequest, QueryResponse, RetrievalMode, SourceIndexResult
+from app.models.query import (
+    Citation,
+    FusionContribution,
+    FusionStrategy,
+    QueryRequest,
+    QueryResponse,
+    RetrievalMode,
+    SourceIndexResult,
+)
 from app.models.sources import Source, SourceConfig, SourceStatus, SourceType, SourceUpdate
 
 __all__ = [
@@ -46,6 +54,8 @@ __all__ = [
     "Evidence",
     "ExtractedEntity",
     "ExtractedRelationship",
+    "FusionContribution",
+    "FusionStrategy",
     "GraphEntity",
     "GraphGenerationMetadata",
     "GraphIndexRequest",
