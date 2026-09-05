@@ -3,26 +3,26 @@
 ## Overall Status
 **Last Reviewed:** September 4, 2026
 
-**Last Completed Implementation Phase:** Phase 12 — Query Router
+**Last Completed Implementation Phase:** Phase 13 — Advanced Citation Engine
 
-**Next Phase:** Phase 13 — Advanced Citation Engine (ready to architect)
+**Next Phase:** Phase 14 — Evaluation Framework (ready to architect)
 
-**Last Phase With All Exit Criteria Satisfied:** Phase 12 — Query Router
+**Last Phase With All Exit Criteria Satisfied:** Phase 13 — Advanced Citation Engine
 
 Phases 2–12 now provide ingestion, coordinated baseline, sentence-window, and lexical index
 generations for FAISS/Pinecone plus durable local BM25 storage, OpenAI-assisted knowledge-graph
 extraction, durable local graph generations, independently selectable or concurrently fused
 vector/window/graph/lexical retrieval, optional cross-encoder re-ranking with source diversity,
 PostgreSQL-first structured retrieval with AST-validated read-only SQL and server-enforced tenant
-filters, deterministic source-aware query routing, grounded answers, and multi-source provenance.
-Advanced citation rendering and source inspection remain deferred to Phase 13.
+filters, deterministic source-aware query routing, grounded answers, typed source locators,
+validated inline markers, and bounded citation inspection.
 
-**Build-plan alignment:** Phases 0–12 are complete. Phase 13 advanced citations is next. Tracker
+**Build-plan alignment:** Phases 0–13 are complete. Phase 14 evaluation framework is next. Tracker
 sections are grouped by subsystem, so their section numbers do not map one-to-one to the phase
 numbers in `build-plan.md`.
 
-**Verification:** Ruff formatting and lint pass, strict mypy passes across 94 source files, and
-pytest reports `160 passed, 1 skipped`. The skipped test is the opt-in live OpenAI graph
+**Verification:** Ruff formatting and lint pass, strict mypy passes across 97 source files, and
+pytest reports `177 passed, 1 skipped`. The skipped test is the opt-in live OpenAI graph
 integration test.
 
 ## Status Legend
@@ -210,10 +210,20 @@ eight-case graded benchmark improves MRR and NDCG over fused-only ordering.
 - [x] Website locator
 - [x] CSV locator
 - [x] Database locator
-- [ ] Inline citation renderer
-- [ ] Source inspector
+- [x] Inline citation renderer
+- [x] Source inspector
 - [x] Baseline citation accuracy tests
 - [x] Graph edge-to-source citation mapping
+
+**Implementation status:** Complete
+
+**Exit criteria:** Complete — request-local IDs are deterministically assigned from final evidence
+order and exact canonical citation identities. Every citation exposes a strict source-specific
+locator while retaining its display locator, generated factual paragraphs must end in valid
+inline markers, and generators explicitly declare whether evidence is sufficient. Streamlit
+provides bounded citation inspection without secondary source or database reads. A committed
+all-source benchmark and focused invalid-output, duplicate, graph, multi-citation, URL-safety, and
+compatibility tests enforce complete locator and marker accuracy.
 
 ## 15. Query Routing
 - [x] Rules-based router
@@ -239,8 +249,8 @@ question text, unavailable graph indexes safely fall back to default fusion, and
 - [x] CSV upload
 - [x] DB form
 - [x] Chat
-- [ ] Citation badges
-- [ ] Source inspector
+- [x] Citation badges
+- [x] Source inspector
 - [x] Retrieval trace panel
 - [ ] Evaluation dashboard
 

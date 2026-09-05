@@ -2,7 +2,7 @@
 
 import logging
 
-from app.citations.builder import build_citations
+from app.citations import build_citations, validate_inline_citations
 from app.core.exceptions import GraphIndexNotFoundError, RetrievalError
 from app.generation.extractive import Generator
 from app.models import (
@@ -239,11 +239,17 @@ class QueryService:
     ) -> QueryResponse:
         """Build citations and a grounded answer from ordered canonical evidence."""
         citations = build_citations(evidence)
-        answer = await self._generator.generate(question, evidence, citations)
+        generation = await self._generator.generate(question, evidence, citations)
+        citation_segments = validate_inline_citations(
+            generation.answer,
+            citations,
+            insufficient_evidence=generation.insufficient_evidence,
+        )
         return QueryResponse(
-            answer=answer,
+            answer=generation.answer,
             citations=citations,
             evidence=evidence,
-            insufficient_evidence=not evidence,
+            insufficient_evidence=generation.insufficient_evidence,
+            citation_segments=citation_segments,
             routing_trace=routing_trace,
         )

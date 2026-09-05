@@ -1,5 +1,14 @@
 """Canonical application data models."""
 
+from app.models.citations import (
+    AnswerCitationSegment,
+    Citation,
+    CitationLocator,
+    CsvCitationLocator,
+    DatabaseCitationLocator,
+    PdfCitationLocator,
+    WebsiteCitationLocator,
+)
 from app.models.database import (
     DatabaseColumn,
     DatabaseDialect,
@@ -41,7 +50,6 @@ from app.models.ingestion import (
     WebsiteIngestionResult,
 )
 from app.models.query import (
-    Citation,
     FusionContribution,
     FusionStrategy,
     QueryRequest,
@@ -53,14 +61,18 @@ from app.models.routing import RoutingIntent, RoutingKind, RoutingRuleMatch, Rou
 from app.models.sources import Source, SourceConfig, SourceStatus, SourceType, SourceUpdate
 
 __all__ = [
+    "AnswerCitationSegment",
     "BatchGraphExtraction",
     "Citation",
+    "CitationLocator",
     "CrawlFailure",
     "CrawlManifest",
+    "CsvCitationLocator",
     "CsvColumnPreview",
     "CsvColumnType",
     "CsvIngestionResult",
     "CsvPreviewResult",
+    "DatabaseCitationLocator",
     "DatabaseColumn",
     "DatabaseDialect",
     "DatabaseIsolationMode",
@@ -86,6 +98,7 @@ __all__ = [
     "GraphSupport",
     "HealthResponse",
     "NormalizedDocument",
+    "PdfCitationLocator",
     "PdfIngestionResult",
     "QueryRequest",
     "QueryResponse",
@@ -103,6 +116,7 @@ __all__ = [
     "SourceType",
     "SourceUpdate",
     "ValidatedSql",
+    "WebsiteCitationLocator",
     "WebsiteIngestionRequest",
     "WebsiteIngestionResult",
 ]
