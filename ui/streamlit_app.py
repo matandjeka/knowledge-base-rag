@@ -318,8 +318,31 @@ if ready_sources:
             result = response.json()
             with st.chat_message("assistant"):
                 st.write(result["answer"])
+                citation_segments = result.get("citation_segments", [])
+                st.caption("Sources")
                 for citation in result["citations"]:
-                    st.caption(f"[{citation['citation_id']}] {citation['locator']}")
+                    source_label = citation.get("source_title") or citation["source_type"]
+                    with st.expander(
+                        f"[{citation['citation_id']}] {source_label} · {citation['locator']}"
+                    ):
+                        supported_segments = [
+                            segment["text"]
+                            for segment in citation_segments
+                            if citation["citation_id"] in segment["citation_ids"]
+                        ]
+                        for segment_text in supported_segments:
+                            st.write(f"Supports: {segment_text}")
+                        st.write(citation["excerpt"])
+                        st.caption(
+                            f"Retriever: {citation['retriever']} · Score: {citation['score']:.3f}"
+                        )
+                        locator_details = citation["locator_details"]
+                        if locator_details["source_type"] == "website":
+                            st.link_button("Open source page", locator_details["url"])
+                        elif locator_details["source_type"] == "database" and (
+                            fingerprint := locator_details.get("query_fingerprint")
+                        ):
+                            st.caption(f"Query fingerprint: {fingerprint[:12]}")
                 routing_trace = result.get("routing_trace")
                 if routing_trace:
                     with st.expander("How this question was routed"):

@@ -5,8 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.models.citations import AnswerCitationSegment, Citation
 from app.models.documents import Evidence
-from app.models.sources import SourceType
 
 
 class RetrievalMode(StrEnum):
@@ -80,21 +80,6 @@ class QueryRequest(BaseModel):
         return self
 
 
-class Citation(BaseModel):
-    """Request-local locator for one retrieved evidence item."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    citation_id: str = Field(pattern=r"^S[1-9][0-9]*$")
-    evidence_id: UUID
-    source_id: UUID
-    source_type: SourceType
-    source_title: str | None = None
-    excerpt: str = Field(min_length=1)
-    locator: str = Field(min_length=1)
-    score: float
-
-
 class QueryResponse(BaseModel):
     """Deterministic grounded response plus inspectable retrieval evidence."""
 
@@ -104,6 +89,7 @@ class QueryResponse(BaseModel):
     citations: list[Citation] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
     insufficient_evidence: bool
+    citation_segments: list[AnswerCitationSegment] | None = None
     routing_trace: "RoutingTrace | None" = None
 
 

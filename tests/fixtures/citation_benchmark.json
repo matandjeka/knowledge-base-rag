@@ -1,0 +1,32 @@
+[
+  {
+    "key": "pdf-page",
+    "source_type": "pdf",
+    "content": "The retention period is seven years.",
+    "page_number": 14,
+    "expected_locator": "page 14"
+  },
+  {
+    "key": "website-url",
+    "source_type": "website",
+    "content": "Support hours begin at 08:00 UTC.",
+    "source_uri": "https://example.test/support",
+    "expected_locator": "https://example.test/support"
+  },
+  {
+    "key": "csv-row",
+    "source_type": "csv",
+    "content": "Region West has an active account.",
+    "row_id": "account-7",
+    "expected_locator": "row account-7"
+  },
+  {
+    "key": "database-record",
+    "source_type": "database",
+    "content": "{\"region\": \"West\", \"revenue\": 250}",
+    "row_id": "sales.id=7",
+    "table_name": "sales",
+    "query_fingerprint": "abcdef1234567890",
+    "expected_locator": "table sales, record sales.id=7"
+  }
+]

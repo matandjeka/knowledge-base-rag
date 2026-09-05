@@ -9,15 +9,13 @@ def build_grounded_prompt(
     """Build a provider-neutral prompt that forbids unsupported claims."""
     context_parts = []
     for item in evidence:
-        markers = " ".join(
-            f"[{citation.citation_id}]"
-            for citation in citations
-            if citation.evidence_id == item.evidence_id
-        )
+        citation_ids = item.metadata.get("citation_ids", [])
+        markers = " ".join(f"[{citation_id}]" for citation_id in citation_ids)
         context_parts.append(f"{markers} {item.content}".strip())
     context = "\n\n".join(context_parts)
     return (
-        "Answer only from the supplied evidence. Cite every factual claim using the "
-        "provided source IDs. If the evidence is insufficient, say so explicitly.\n\n"
+        "Answer only from the supplied evidence. End every non-empty factual paragraph with one "
+        "or more exact citation markers such as [S1]. Use only the provided source IDs. Never "
+        "invent or alter a marker. If the evidence is insufficient, say so explicitly.\n\n"
         f"Question:\n{question}\n\nEvidence:\n{context or '(none)'}"
     )

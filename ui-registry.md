@@ -60,3 +60,25 @@ Supporting citations appear directly below the answer as muted captions. Keep ro
 collapsed expander, with primary fields as short labeled rows and secondary diagnostics as captions.
 Source filtering uses a native multiselect above the chat input. Empty and unavailable states use
 native disabled input, information, and error components.
+
+### Citation Inspector
+
+File: ui/streamlit_app.py
+Last updated: September 4, 2026
+
+| Property | Class or pattern |
+| --- | --- |
+| Background | Native `st.expander` container |
+| Border | Native Streamlit expander border |
+| Border radius | Native Streamlit component radius |
+| Text — primary | `st.write` for supported claim and bounded excerpt |
+| Text — secondary | `st.caption` for retriever, score, and fingerprint |
+| Spacing | Native expander content spacing |
+| Hover state | Native expander and `st.link_button` states |
+| Shadow | None |
+| Accent usage | Website-only native link button |
+
+**Pattern notes:** Each citation uses one collapsed expander labeled with its stable response ID,
+source title or type, and human-readable locator. Show claim associations before the excerpt and
+keep retrieval diagnostics visually secondary. Only website citations receive an outbound action;
+PDF, CSV, and database locators remain descriptive until secured source viewing exists.
