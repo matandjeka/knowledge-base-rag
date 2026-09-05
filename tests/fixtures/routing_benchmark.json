@@ -1,0 +1,74 @@
+[
+  {
+    "key": "sql_comparison",
+    "question": "Compare revenue by region",
+    "expected_intent": "sql",
+    "expected_retrievers": ["sql"]
+  },
+  {
+    "key": "sql_aggregate",
+    "question": "Which region had the highest churn?",
+    "expected_intent": "sql",
+    "expected_retrievers": ["sql"]
+  },
+  {
+    "key": "sql_filter",
+    "question": "List open tickets older than 30 days",
+    "expected_intent": "sql",
+    "expected_retrievers": ["sql"]
+  },
+  {
+    "key": "graph_owner",
+    "question": "Who owns Project Atlas?",
+    "expected_intent": "graph",
+    "expected_retrievers": ["graph", "vector"]
+  },
+  {
+    "key": "graph_management",
+    "question": "Which team manages the onboarding project?",
+    "expected_intent": "graph",
+    "expected_retrievers": ["graph", "vector"]
+  },
+  {
+    "key": "window_paragraph",
+    "question": "Explain the paragraph around termination notice",
+    "expected_intent": "sentence_window",
+    "expected_retrievers": ["sentence_window", "vector"]
+  },
+  {
+    "key": "window_surrounding",
+    "question": "Show the surrounding context for the renewal clause",
+    "expected_intent": "sentence_window",
+    "expected_retrievers": ["sentence_window", "vector"]
+  },
+  {
+    "key": "lexical_policy",
+    "question": "What does policy HR-402 say?",
+    "expected_intent": "lexical",
+    "expected_retrievers": ["lexical", "vector"]
+  },
+  {
+    "key": "lexical_code",
+    "question": "Find exact code SKU-8842",
+    "expected_intent": "lexical",
+    "expected_retrievers": ["lexical", "vector"]
+  },
+  {
+    "key": "default_summary",
+    "question": "Summarize the employee handbook",
+    "expected_intent": "default",
+    "expected_retrievers": ["vector", "sentence_window", "lexical"]
+  },
+  {
+    "key": "default_general",
+    "question": "What are the remote work guidelines?",
+    "expected_intent": "default",
+    "expected_retrievers": ["vector", "sentence_window", "lexical"]
+  },
+  {
+    "key": "mixed_fallback",
+    "question": "Who owns policy HR-402?",
+    "expected_intent": "default",
+    "expected_retrievers": ["vector", "sentence_window", "lexical"]
+  }
+]

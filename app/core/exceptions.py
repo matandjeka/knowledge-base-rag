@@ -57,6 +57,10 @@ class RetrievalError(ApplicationError):
     """Raised when evidence retrieval fails."""
 
 
+class RoutingError(RetrievalError):
+    """Raised when automatic routing cannot select a safe retrieval plan."""
+
+
 class RerankingError(ApplicationError):
     """Raised when candidate re-ranking fails."""
 

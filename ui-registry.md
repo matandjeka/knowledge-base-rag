@@ -38,23 +38,25 @@ Last updated: September 4, 2026
 **Pattern notes:** Keep advanced source configuration inside an expander. Use a full-width primary
 button only for the final connection action, native validation feedback, and no custom CSS.
 
-### Structured Query Chat
+### Automatically Routed Query Chat
 
 File: ui/streamlit_app.py
 Last updated: September 4, 2026
 
 | Property | Class or pattern |
 | --- | --- |
-| Background | Native `st.chat_message` containers |
-| Border | Native Streamlit chat styling |
-| Border radius | Native Streamlit chat radius |
+| Background | Native `st.chat_message` and `st.expander` containers |
+| Border | Native Streamlit chat and expander styling |
+| Border radius | Native Streamlit component radius |
 | Text — primary | `st.write` answer and question text |
-| Text — secondary | `st.caption` citation text |
+| Text — secondary | `st.caption` citation, fallback, and timing text |
 | Spacing | Native chat component spacing |
-| Hover state | Native Streamlit input state |
+| Hover state | Native Streamlit multiselect, input, and expander states |
 | Shadow | None |
 | Accent usage | Native chat role treatment |
 
 **Pattern notes:** Render the user question and assistant response with native chat components.
-Supporting citations appear directly below the answer as muted captions. Empty and unavailable
-states use native disabled input, information, and error components.
+Supporting citations appear directly below the answer as muted captions. Keep route details in a
+collapsed expander, with primary fields as short labeled rows and secondary diagnostics as captions.
+Source filtering uses a native multiselect above the chat input. Empty and unavailable states use
+native disabled input, information, and error components.

@@ -17,7 +17,16 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
         }
-        for field in ("trace_id", "workspace_id", "user_id"):
+        for field in (
+            "trace_id",
+            "workspace_id",
+            "user_id",
+            "retrieval_mode",
+            "routing_intent",
+            "selected_retrievers",
+            "routing_confidence",
+            "routing_fallback",
+        ):
             value = getattr(record, field, None)
             if value is not None:
                 payload[field] = value

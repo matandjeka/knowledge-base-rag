@@ -36,6 +36,7 @@ from app.retrieval.query_service import QueryService
 from app.retrieval.sentence_window import SentenceWindowRetriever
 from app.retrieval.vector import VectorRetriever
 from app.retrieval.vector_store import FaissVectorStore
+from app.routing import RuleBasedQueryRouter
 from app.storage import LocalSourceStorage
 
 
@@ -291,4 +292,8 @@ def get_query_service() -> QueryService:
         reranking_service=get_reranking_service(),
         reranking_candidate_pool_size=settings.reranking_candidate_pool_size,
         database_retriever=_database_retriever(),
+        query_router=RuleBasedQueryRouter(
+            confidence_threshold=settings.routing_confidence_threshold,
+            winning_margin=settings.routing_winning_margin,
+        ),
     )

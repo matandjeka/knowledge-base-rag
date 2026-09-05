@@ -277,32 +277,40 @@ try:
         timeout=5,
     )
     source_response.raise_for_status()
-    database_sources = [
-        source
-        for source in source_response.json()
-        if source["config"]["source_type"] == "database" and source["status"] == "ready"
-    ]
+    ready_sources = [source for source in source_response.json() if source["status"] == "ready"]
 except (httpx.HTTPStatusError, httpx.RequestError):
-    database_sources = []
+    ready_sources = []
 
-if database_sources:
-    database_by_label = {
-        f"{source['name']} ({source['source_id'][:8]})": source for source in database_sources
+if ready_sources:
+    source_by_label = {
+        f"{source['name']} · {source['config']['source_type']}": source for source in ready_sources
     }
-    selected_database_label = st.selectbox("Database source", list(database_by_label))
-    sql_question = st.chat_input("Ask an aggregation or filtering question")
-    if sql_question:
-        selected_database = database_by_label[selected_database_label]
+    selected_source_labels = st.multiselect(
+        "Sources",
+        list(source_by_label),
+        default=list(source_by_label),
+        help=(
+            "Automatic routing searches the selected documents, websites, CSVs, and databases. "
+            "Select at most one database for structured questions."
+        ),
+    )
+    question = st.chat_input(
+        "Ask across your selected knowledge sources", disabled=not selected_source_labels
+    )
+    if question:
+        selected_source_ids = [
+            source_by_label[label]["source_id"] for label in selected_source_labels
+        ]
         with st.chat_message("user"):
-            st.write(sql_question)
+            st.write(question)
         try:
             response = httpx.post(
                 f"{settings.api_base_url}/query",
                 json={
                     "workspace_id": workspace_id,
-                    "question": sql_question,
-                    "source_ids": [selected_database["source_id"]],
-                    "retrieval_mode": "sql",
+                    "question": question,
+                    "source_ids": selected_source_ids,
+                    "retrieval_mode": "auto",
                 },
                 timeout=60,
             )
@@ -312,11 +320,21 @@ if database_sources:
                 st.write(result["answer"])
                 for citation in result["citations"]:
                     st.caption(f"[{citation['citation_id']}] {citation['locator']}")
+                routing_trace = result.get("routing_trace")
+                if routing_trace:
+                    with st.expander("How this question was routed"):
+                        retrievers = ", ".join(routing_trace["selected_retrievers"])
+                        st.write(f"**Intent:** {routing_trace['intent']}")
+                        st.write(f"**Retrievers:** {retrievers}")
+                        st.write(f"**Confidence:** {routing_trace['confidence']:.0%}")
+                        if routing_trace.get("fallback_reason"):
+                            st.caption(f"Fallback: {routing_trace['fallback_reason']}")
+                        st.caption(f"Routing time: {routing_trace['routing_latency_ms']:.2f} ms")
         except httpx.HTTPStatusError as error:
-            detail = error.response.json().get("detail", "The SQL query was rejected")
+            detail = error.response.json().get("detail", "The query was rejected")
             st.error(str(detail))
         except httpx.RequestError:
             st.error("Could not reach the query API.")
 else:
-    st.chat_input("Connect a database source before asking a SQL question", disabled=True)
-    st.info("Connect an approved PostgreSQL source to enable structured retrieval.")
+    st.chat_input("Add a ready knowledge source before asking a question", disabled=True)
+    st.info("Add a PDF, CSV, website, or approved PostgreSQL source to begin.")

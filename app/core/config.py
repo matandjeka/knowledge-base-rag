@@ -80,6 +80,8 @@ class Settings(BaseSettings):
     sql_generation_max_retries: int = Field(default=2, ge=0, le=10)
     sql_execution_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
     sql_max_rows: int = Field(default=100, ge=1, le=1000)
+    routing_confidence_threshold: float = Field(default=0.70, ge=0, le=1)
+    routing_winning_margin: float = Field(default=0.15, ge=0, le=1)
 
     @model_validator(mode="after")
     def validate_vector_store_configuration(self) -> "Settings":
