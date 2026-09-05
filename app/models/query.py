@@ -18,6 +18,7 @@ class RetrievalMode(StrEnum):
     LEXICAL = "lexical"
     FUSION = "fusion"
     SQL = "sql"
+    AUTO = "auto"
 
 
 class FusionStrategy(StrEnum):
@@ -103,6 +104,7 @@ class QueryResponse(BaseModel):
     citations: list[Citation] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
     insufficient_evidence: bool
+    routing_trace: "RoutingTrace | None" = None
 
 
 class SourceIndexResult(BaseModel):
@@ -114,3 +116,6 @@ class SourceIndexResult(BaseModel):
     source_id: UUID
     document_count: int = Field(ge=1)
     generation_id: UUID
+
+
+from app.models.routing import RoutingTrace  # noqa: E402

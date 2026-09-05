@@ -49,6 +49,7 @@ from app.models.query import (
     RetrievalMode,
     SourceIndexResult,
 )
+from app.models.routing import RoutingIntent, RoutingKind, RoutingRuleMatch, RoutingTrace
 from app.models.sources import Source, SourceConfig, SourceStatus, SourceType, SourceUpdate
 
 __all__ = [
@@ -91,6 +92,10 @@ __all__ = [
     "RawDocument",
     "RelationshipType",
     "RetrievalMode",
+    "RoutingIntent",
+    "RoutingKind",
+    "RoutingRuleMatch",
+    "RoutingTrace",
     "Source",
     "SourceConfig",
     "SourceIndexResult",

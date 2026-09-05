@@ -1,48 +1,69 @@
-# Memory — Baseline Vector RAG and Pinecone Adapter
+# Memory — Phase 12 Query Router In Progress
 
-Last updated: 2026-09-01 23:24 CDT
+Last updated: 2026-09-04 09:30 CDT
 
 ## What was built
 
-- Completed Phase 5 baseline vector RAG across PDF, website, and CSV sources.
-- Added query contracts, BGE embeddings, top-k retrieval, source filtering, extractive answers, insufficient-evidence handling, grounded prompt construction, and request-local citations.
-- Added durable FAISS generations with checksums, staged preparation, atomic activation, and restart-safe source discovery.
-- Added `app/retrieval/pinecone_store.py` with workspace namespaces, batched staged generations, control-record activation, server-side filtering, compatibility validation, consistency retries, and best-effort stale-generation cleanup.
-- Added Pinecone backend configuration and selection, documented setup in `README.md`, and added regression coverage in `tests/test_baseline_rag.py` and `tests/test_pinecone_store.py`.
-- Updated `context/progress-tracker.md` to mark both vector-store adapters complete.
+- Phase 11 structured database retrieval is complete and review fixes are applied. It includes
+  credential-reference registration, PostgreSQL-first async SQLAlchemy access, read-only
+  transactions, allowlisted schema inspection, structured OpenAI SQL generation, scope-aware
+  SQLGlot validation, tenant predicates, bounded execution, database evidence, and citations.
+- Phase 11 review regressions cover CTEs, aliases, nested DML rejection, preserved limits,
+  qualified joined-row identities, PostgreSQL driver normalization, pooling, timeout setup, and
+  sanitized URL errors. The established Streamlit baseline is saved in `ui-registry.md`.
+- Phase 12 architecture is confirmed and implementation has started.
+- Added routing contracts in `app/models/routing.py`, deterministic rules in
+  `app/routing/rules.py`, routing metrics in `app/evaluation/routing_comparison.py`, and a committed
+  12-question corpus in `tests/fixtures/routing_benchmark.json`.
+- Added `RetrievalMode.AUTO`, optional response routing traces, router configuration, structured
+  routing log fields, and automatic-plan execution/fallback logic in `QueryService`.
+- Added focused Phase 12 coverage in `tests/test_query_routing.py`.
 
 ## Decisions made
 
-- FAISS remains the default; Pinecone is selected explicitly with `VECTOR_STORE_BACKEND=pinecone`.
-- The application connects to an existing Pinecone index and never creates or deletes it.
-- Pinecone indexes must match the configured 384-dimensional model and cosine similarity.
-- Each workspace has a Pinecone namespace. Complete generations are uploaded before a control record selects the active generation.
-- Pinecone performs active-generation and source-ID filtering server-side.
-- Old-generation cleanup is best-effort after activation and cannot roll back a valid generation.
-- The adapter uses Pinecone's official asynchronous v9 SDK with bounded timeouts.
-- Credentials remain environment-only and must never be committed or stored in memory.
+- Automatic routing is opt-in through `retrieval_mode="auto"`; the API default remains `vector`.
+- Routes use the smallest reliable plan: SQL alone, graph plus vector, lexical plus vector,
+  sentence-window plus vector, or default fusion for weak/mixed intent.
+- SQL may use an explicitly selected database or the sole ready workspace database. Multiple
+  eligible databases must produce a selection-required error.
+- Specialized routing requires both a confidence threshold and winning margin; ties fall back to
+  default fusion.
+- Explicit modes remain overrides and also receive an inspectable routing trace.
+- The Phase 12 gate is 100% safe SQL behavior, at least 90% plan accuracy, no citation regression,
+  at most 2% hit-rate/MRR decline, and improved specialized median latency.
 
 ## Problems solved
 
-- Fixed macOS x86_64 incompatibilities with appropriate FAISS, Torch, NumPy, Transformers, and Sentence Transformers constraints.
-- Prevented failed ingestions from activating partial indexes by separating preparation from activation and supporting READY-to-FAILED rollback.
-- Prevented rebuilds after restart from dropping older sources by enumerating persisted metadata rather than relying only on the process-local registry.
-- Corrected explicit indexing error handling, aligned query limits, and kept the embedding model lazily loaded.
+- Corrected the SQL comparison rule weight so “Compare revenue by region” clears the configured
+  routing threshold without weakening generic-query fallback behavior.
+- Added runtime graph-index fallback to default fusion while retaining an inspectable reason.
+- Kept question text out of structured routing logs while exposing intent, confidence, selected
+  retrievers, and fallback reason.
 
 ## Current state
 
-- Phase 5 is complete with FAISS and Pinecone adapters.
-- Ruff, formatting, strict mypy, `git diff --check`, and all 89 tests pass.
-- The working tree is clean at save time.
-- Pinecone is tested with an in-memory async double. No live cloud smoke test was run because no credentials or provisioned test index were supplied.
-- The registry remains process-local, although artifacts and indexes are durable and rebuilds discover persisted ready sources.
+- Phase 11 passed its final full verification with Ruff, strict mypy, `git diff --check`, and
+  `151 passed, 1 skipped` tests.
+- Phase 12 is partial. Ruff and strict mypy pass for the current code, and all 7 focused routing
+  tests pass.
+- The full test suite has not yet been run after the Phase 12 changes.
+- Streamlit has not yet been updated to send automatic queries or display routing traces.
+- `context/progress-tracker.md` has not yet been advanced to Phase 12.
+- Current uncommitted changes are the Phase 12 files and edits shown by `git status`; preserve them.
 
 ## Next session starts with
 
-Run `/remember restore`, confirm this state, then either perform a live Pinecone smoke test against an existing 384-dimensional cosine index or use `/architect phase 6` for sentence-window retrieval.
+Run `/remember restore`, confirm this checkpoint, then continue Phase 12 by running the full test
+suite, resolving compatibility failures, updating Streamlit to query all available source types
+with `retrieval_mode="auto"`, adding the routing-trace expander, and completing benchmark/API edge
+coverage. Run `/imprint` after the UI change, then update `context/progress-tracker.md` only after
+the complete quality suite passes.
 
 ## Open questions
 
-- Whether to add an opt-in live Pinecone integration-test marker once a non-production test index is available.
-- When to implement full durable source-registry rehydration instead of filesystem discovery during rebuilds.
-- Phase 6 sentence-window parsing, neighbor-window metadata, and independent enablement require architecture decisions.
+- Verify whether automatic SQL with no ready database should remain a typed routing error or fall
+  back to document fusion; multiple-database ambiguity is already locked as an error.
+- Confirm benchmark metrics use at least one specialized observation before calculating median
+  latency; add explicit validation if missing.
+- Review the temporary cross-module routing model import between `app/models/query.py` and
+  `app/models/routing.py`; it works and type-checks but may be cleaner if reorganized.

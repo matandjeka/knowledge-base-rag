@@ -21,7 +21,7 @@ from app.retrieval.query_service import QueryService
 router = APIRouter(tags=["query"])
 
 
-@router.post("/query", response_model=QueryResponse)
+@router.post("/query", response_model=QueryResponse, response_model_exclude_none=True)
 async def query_knowledge_base(
     request: QueryRequest,
     service: Annotated[QueryService, Depends(get_query_service)],

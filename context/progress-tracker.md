@@ -3,26 +3,27 @@
 ## Overall Status
 **Last Reviewed:** September 4, 2026
 
-**Last Completed Implementation Phase:** Phase 11 — Structured Database Retrieval
+**Last Completed Implementation Phase:** Phase 12 — Query Router
 
-**Next Phase:** Phase 12 — Query Router (ready to architect)
+**Next Phase:** Phase 13 — Advanced Citation Engine (ready to architect)
 
-**Last Phase With All Exit Criteria Satisfied:** Phase 11 — Structured Database Retrieval
+**Last Phase With All Exit Criteria Satisfied:** Phase 12 — Query Router
 
-Phases 2–11 now provide ingestion, coordinated baseline, sentence-window, and lexical index
+Phases 2–12 now provide ingestion, coordinated baseline, sentence-window, and lexical index
 generations for FAISS/Pinecone plus durable local BM25 storage, OpenAI-assisted knowledge-graph
 extraction, durable local graph generations, independently selectable or concurrently fused
 vector/window/graph/lexical retrieval, optional cross-encoder re-ranking with source diversity,
 PostgreSQL-first structured retrieval with AST-validated read-only SQL and server-enforced tenant
-filters, grounded answers, and multi-source provenance. Advanced citation rendering and source
-inspection remain deferred to Phase 13.
+filters, deterministic source-aware query routing, grounded answers, and multi-source provenance.
+Advanced citation rendering and source inspection remain deferred to Phase 13.
 
-**Build-plan alignment:** Phases 0–11 are complete. Phase 12 query routing has not started. Tracker
+**Build-plan alignment:** Phases 0–12 are complete. Phase 13 advanced citations is next. Tracker
 sections are grouped by subsystem, so their section numbers do not map one-to-one to the phase
 numbers in `build-plan.md`.
 
-**Verification:** Ruff formatting and lint pass, mypy passes across 89 source files, and pytest
-reports `151 passed, 1 skipped`. The skipped test is the opt-in live OpenAI graph integration test.
+**Verification:** Ruff formatting and lint pass, strict mypy passes across 94 source files, and
+pytest reports `160 passed, 1 skipped`. The skipped test is the opt-in live OpenAI graph
+integration test.
 
 ## Status Legend
 - [ ] Not started
@@ -208,18 +209,26 @@ eight-case graded benchmark improves MRR and NDCG over fused-only ordering.
 - [x] PDF locator
 - [x] Website locator
 - [x] CSV locator
-- [ ] Database locator
+- [x] Database locator
 - [ ] Inline citation renderer
 - [ ] Source inspector
 - [x] Baseline citation accuracy tests
 - [x] Graph edge-to-source citation mapping
 
 ## 15. Query Routing
-- [ ] Rules-based router
-- [ ] Retriever selection
-- [ ] SQL intent detection
-- [ ] Graph intent detection
-- [ ] Evaluation of routing impact
+- [x] Rules-based router
+- [x] Retriever selection
+- [x] SQL intent detection
+- [x] Graph intent detection
+- [x] Evaluation of routing impact
+
+**Implementation status:** Complete
+
+**Exit criteria:** Complete — opt-in automatic routing selects the smallest reliable SQL,
+graph-plus-vector, lexical-plus-vector, sentence-window-plus-vector, or default-fusion plan using
+deterministic confidence and winning-margin rules. Responses expose routing traces, logs exclude
+question text, unavailable graph indexes safely fall back to default fusion, and the committed
+12-question benchmark meets the plan-accuracy, SQL-safety, quality, citation, and latency gates.
 
 ## 16. Streamlit UI
 - [x] App shell
@@ -227,13 +236,12 @@ eight-case graded benchmark improves MRR and NDCG over fused-only ordering.
 - [ ] Source manager
 - [x] PDF upload
 - [x] Website form
-- [ ] CSV upload
-- [ ] DB form
+- [x] CSV upload
 - [x] DB form
-- [~] Chat (structured database questions implemented; general multi-source chat deferred)
+- [x] Chat
 - [ ] Citation badges
 - [ ] Source inspector
-- [ ] Retrieval trace panel
+- [x] Retrieval trace panel
 - [ ] Evaluation dashboard
 
 ## 17. Evaluation
