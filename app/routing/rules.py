@@ -65,7 +65,7 @@ _RULES = (
         RoutingIntent.GRAPH,
         re.compile(
             r"\b(owns?|manages?|reports? to|responsible for|depends? on|connected to|"
-            r"relationship between)\b"
+            r"governs?|relationship between)\b"
         ),
         0.85,
     ),
