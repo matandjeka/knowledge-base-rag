@@ -3,11 +3,11 @@
 ## Overall Status
 **Last Reviewed:** September 4, 2026
 
-**Last Completed Implementation Phase:** Phase 13 — Advanced Citation Engine
+**Last Completed Implementation Phase:** Phase 14 — Evaluation Framework
 
-**Next Phase:** Phase 14 — Evaluation Framework (ready to architect)
+**Next Phase:** Phase 15 — Streamlit Application (ready to architect)
 
-**Last Phase With All Exit Criteria Satisfied:** Phase 13 — Advanced Citation Engine
+**Last Phase With All Exit Criteria Satisfied:** Phase 14 — Evaluation Framework
 
 Phases 2–12 now provide ingestion, coordinated baseline, sentence-window, and lexical index
 generations for FAISS/Pinecone plus durable local BM25 storage, OpenAI-assisted knowledge-graph
@@ -15,14 +15,14 @@ extraction, durable local graph generations, independently selectable or concurr
 vector/window/graph/lexical retrieval, optional cross-encoder re-ranking with source diversity,
 PostgreSQL-first structured retrieval with AST-validated read-only SQL and server-enforced tenant
 filters, deterministic source-aware query routing, grounded answers, typed source locators,
-validated inline markers, and bounded citation inspection.
+validated inline markers, bounded citation inspection, and versioned deployment-gate evaluation.
 
-**Build-plan alignment:** Phases 0–13 are complete. Phase 14 evaluation framework is next. Tracker
+**Build-plan alignment:** Phases 0–14 are complete. Phase 15 Streamlit application is next. Tracker
 sections are grouped by subsystem, so their section numbers do not map one-to-one to the phase
 numbers in `build-plan.md`.
 
-**Verification:** Ruff formatting and lint pass, strict mypy passes across 97 source files, and
-pytest reports `177 passed, 1 skipped`. The skipped test is the opt-in live OpenAI graph
+**Verification:** Ruff formatting and lint pass, strict mypy passes across 104 source files, and
+pytest reports `197 passed, 1 skipped`. The skipped test is the opt-in live OpenAI graph
 integration test.
 
 ## Status Legend
@@ -255,16 +255,28 @@ question text, unavailable graph indexes safely fall back to default fusion, and
 - [ ] Evaluation dashboard
 
 ## 17. Evaluation
-- [~] Golden question set (28 focused Phase 6–10 cases; 30–50 case suite deferred)
-- [~] Expected source labels (implemented for window, graph, lexical, fusion, and re-ranking)
-- [ ] Recall@K
-- [ ] Precision@K
+- [x] Golden question set (40-case unified suite plus focused regression benchmarks)
+- [x] Expected source labels
+- [x] Recall@K
+- [x] Precision@K
 - [x] MRR
 - [x] NDCG
-- [ ] Faithfulness
+- [x] Faithfulness
 - [x] Citation accuracy
 - [x] Latency tracking
-- [ ] Cost tracking
+- [~] Cost tracking (optional token and cost observations; provider accounting deferred)
+
+**Implementation status:** Complete
+
+**Exit criteria:** Complete — one strict, versioned 40-case benchmark covers every source type and
+routing intent with evidence-level relevance, locator, fact, contradiction, safety, and
+insufficient-evidence labels. The deterministic tier executes the application `QueryService`
+against a committed in-memory corpus, while the explicitly enabled live tier uses configured
+application dependencies and optionally structured OpenAI faithfulness judgments. Unified metrics,
+source-specific slices, complete candidate-versus-baseline gates, atomic redacted JSON reports, and
+the baseline-required `rag-evaluate` CLI ensure retrieval changes are evaluated before deployment.
+Existing specialized graph, routing, re-ranking, retrieval, and citation benchmarks remain
+independent regression suites.
 
 ## 18. Observability
 - [ ] Trace IDs

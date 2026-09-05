@@ -32,6 +32,9 @@ dependencies = [
     "uvicorn[standard]>=0.35,<1",
 ]
 
+[project.scripts]
+rag-evaluate = "app.evaluation.cli:main"
+
 [dependency-groups]
 dev = [
     "mypy>=1.17,<2",
