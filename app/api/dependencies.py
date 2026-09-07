@@ -2,6 +2,8 @@
 
 from functools import lru_cache
 
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+
 from app.core.config import get_settings
 from app.core.exceptions import GraphConfigurationError
 from app.database import (
@@ -14,9 +16,10 @@ from app.database import (
 )
 from app.generation.extractive import ExtractiveGenerator
 from app.graph.indexing import GraphIndexingService
+from app.graph.neo4j_store import Neo4jGraphStore
 from app.graph.openai_extractor import OpenAIGraphExtractor
 from app.graph.retrieval import GraphRetriever
-from app.graph.store import LocalGraphStore
+from app.graph.store import GraphStore, LocalGraphStore
 from app.ingestion.csv import CsvConnector
 from app.ingestion.csv_service import CsvIngestionService
 from app.ingestion.pdf import PdfConnector
@@ -24,32 +27,88 @@ from app.ingestion.service import PdfIngestionService
 from app.ingestion.website import SafeHttpFetcher, WebsiteCrawler
 from app.ingestion.website_service import WebsiteIngestionService
 from app.models import RetrievalMode
-from app.repositories import InMemorySourceRepository
+from app.persistence import PersistenceRepository, PostgresPersistenceRepository
+from app.repositories import InMemorySourceRepository, SourceRepository
 from app.reranking.service import HuggingFaceCrossEncoderReranker, RerankingService
 from app.retrieval.base import Retriever
+from app.retrieval.blob_lexical import BlobLexicalStore
 from app.retrieval.embedding import HuggingFaceEmbeddingService
 from app.retrieval.fusion import FusionRetriever
 from app.retrieval.indexing import VectorIndexingService
-from app.retrieval.lexical import LexicalRetriever, LocalLexicalStore
+from app.retrieval.lexical import LexicalRetriever, LexicalStore, LocalLexicalStore
 from app.retrieval.pinecone_store import PineconeVectorStore
 from app.retrieval.query_service import QueryService
 from app.retrieval.sentence_window import SentenceWindowRetriever
 from app.retrieval.vector import VectorRetriever
 from app.retrieval.vector_store import FaissVectorStore
 from app.routing import RuleBasedQueryRouter
-from app.storage import LocalSourceStorage
+from app.storage import AzureBlobSourceStorage, LocalSourceStorage, SourceStorage
+
+
+async def close_application_dependencies() -> None:
+    """Close process-wide production clients without constructing unused adapters."""
+    settings = get_settings()
+    await get_database_connection_manager().close()
+    if settings.graph_store_backend == "neo4j":
+        graph_store = get_graph_store()
+        if isinstance(graph_store, Neo4jGraphStore):
+            await graph_store.close()
+    if settings.source_storage_backend == "azure_blob":
+        source_storage = get_source_storage()
+        if isinstance(source_storage, AzureBlobSourceStorage):
+            await source_storage.close()
+    if settings.metadata_store_backend == "postgresql":
+        await get_metadata_engine().dispose()
 
 
 @lru_cache
-def get_source_repository() -> InMemorySourceRepository:
-    """Return the process-local source registry."""
+def get_metadata_engine() -> AsyncEngine:
+    """Return the process-wide async metadata database engine."""
+    settings = get_settings()
+    if settings.metadata_database_url is None:
+        raise RuntimeError("METADATA_DATABASE_URL is required")
+    return create_async_engine(
+        settings.metadata_database_url.get_secret_value(),
+        pool_size=settings.metadata_pool_size,
+        pool_timeout=settings.metadata_pool_timeout_seconds,
+        pool_pre_ping=True,
+        connect_args={"server_settings": {"search_path": settings.metadata_database_schema}},
+    )
+
+
+@lru_cache
+def get_source_repository() -> SourceRepository:
+    """Return the configured authoritative source registry."""
+    if get_settings().metadata_store_backend == "postgresql":
+        return PostgresPersistenceRepository(get_metadata_engine())
     return InMemorySourceRepository()
 
 
+def get_persistence_repository() -> PersistenceRepository:
+    """Return durable generation coordination when production metadata is enabled."""
+    repository = get_source_repository()
+    if not isinstance(repository, PostgresPersistenceRepository):
+        raise RuntimeError("Durable generation coordination requires PostgreSQL metadata")
+    return repository
+
+
 @lru_cache
-def get_source_storage() -> LocalSourceStorage:
-    """Return local source artifact storage."""
-    return LocalSourceStorage(get_settings().data_dir)
+def get_source_storage() -> SourceStorage:
+    """Return configured source artifact storage."""
+    settings = get_settings()
+    if settings.source_storage_backend == "local":
+        return LocalSourceStorage(settings.data_dir)
+    if settings.azure_blob_container is None:
+        raise RuntimeError("Validated Azure Blob configuration is incomplete")
+    return AzureBlobSourceStorage.from_connection(
+        account_url=settings.azure_blob_account_url,
+        container=settings.azure_blob_container,
+        connection_string=(
+            settings.azure_storage_connection_string.get_secret_value()
+            if settings.azure_storage_connection_string is not None
+            else None
+        ),
+    )
 
 
 @lru_cache
@@ -85,22 +144,52 @@ def get_vector_store() -> FaissVectorStore | PineconeVectorStore:
         batch_size=settings.pinecone_upsert_batch_size,
         consistency_retries=settings.pinecone_consistency_retries,
         consistency_delay_seconds=settings.pinecone_consistency_delay_seconds,
+        generation_repository=(
+            get_persistence_repository()
+            if settings.metadata_store_backend == "postgresql"
+            else None
+        ),
     )
 
 
 @lru_cache
-def get_graph_store() -> LocalGraphStore:
-    """Return the durable local graph store."""
+def get_graph_store() -> GraphStore:
+    """Return the configured graph store."""
     settings = get_settings()
+    if settings.graph_store_backend == "neo4j":
+        if (
+            settings.neo4j_uri is None
+            or settings.neo4j_username is None
+            or settings.neo4j_password is None
+        ):
+            raise RuntimeError("Validated Neo4j configuration is incomplete")
+        return Neo4jGraphStore.from_connection(
+            uri=settings.neo4j_uri,
+            username=settings.neo4j_username,
+            password=settings.neo4j_password.get_secret_value(),
+            database=settings.neo4j_database,
+            generations=get_persistence_repository(),
+        )
     return LocalGraphStore(
         settings.data_dir, expected_extractor_model=settings.graph_extraction_model
     )
 
 
 @lru_cache
-def get_lexical_store() -> LocalLexicalStore:
-    """Return the durable local BM25 store."""
+def get_lexical_store() -> LexicalStore:
+    """Return the configured immutable BM25 store."""
     settings = get_settings()
+    if settings.lexical_store_backend == "azure_blob":
+        storage = get_source_storage()
+        if not isinstance(storage, AzureBlobSourceStorage):
+            raise RuntimeError("Blob lexical storage requires Azure Blob source storage")
+        return BlobLexicalStore(
+            storage.container_client,
+            get_persistence_repository(),
+            k1=settings.bm25_k1,
+            b=settings.bm25_b,
+            max_cached_generations=settings.lexical_cache_max_generations,
+        )
     return LocalLexicalStore(settings.data_dir, k1=settings.bm25_k1, b=settings.bm25_b)
 
 
@@ -119,11 +208,17 @@ def get_graph_indexing_service() -> GraphIndexingService:
         max_retries=settings.graph_extraction_max_retries,
     )
     return GraphIndexingService(
+        get_source_repository(),
         get_source_storage(),
         extractor,
         get_graph_store(),
         batch_size=settings.graph_extraction_batch_size,
         max_batch_characters=settings.graph_extraction_max_batch_characters,
+        persistence_repository=(
+            get_persistence_repository()
+            if settings.metadata_store_backend == "postgresql"
+            else None
+        ),
     )
 
 
@@ -184,6 +279,11 @@ def get_vector_indexing_service() -> VectorIndexingService:
         get_vector_store(),
         sentence_window_radius=get_settings().sentence_window_radius,
         lexical_store=get_lexical_store(),
+        persistence_repository=(
+            get_persistence_repository()
+            if get_settings().metadata_store_backend == "postgresql"
+            else None
+        ),
     )
 
 

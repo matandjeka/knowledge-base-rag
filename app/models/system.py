@@ -14,11 +14,16 @@ class EffectiveSettings(BaseModel):
     app_name: str
     app_env: Literal["development", "test", "production"]
     vector_store_backend: Literal["faiss", "pinecone"]
+    metadata_store_backend: Literal["memory", "postgresql"]
+    source_storage_backend: Literal["local", "azure_blob"]
+    lexical_store_backend: Literal["local", "azure_blob"]
+    graph_store_backend: Literal["local", "neo4j"]
     retrieval_top_k: int = Field(ge=1, le=20)
     retrieval_max_top_k: int = Field(ge=1, le=20)
     retrieval_min_similarity: float = Field(ge=-1, le=1)
     graph_retrieval_configured: bool
     sql_retrieval_configured: bool
+    production_persistence_ready: bool
 
 
 class EvaluationReportSummary(BaseModel):

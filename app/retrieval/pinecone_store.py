@@ -13,6 +13,7 @@ from numpy.typing import NDArray
 
 from app.core.exceptions import IndexingError, IndexNotFoundError
 from app.models import NormalizedDocument
+from app.persistence import ActiveGenerationRepository, GenerationKind
 from app.retrieval.vector_store import (
     VectorGenerationMetadata,
     VectorIndexKind,
@@ -70,6 +71,7 @@ class PineconeVectorStore:
         consistency_delay_seconds: float,
         index_factory: IndexFactory | None = None,
         index_descriptor: IndexDescriptor | None = None,
+        generation_repository: ActiveGenerationRepository | None = None,
     ) -> None:
         self._api_key = api_key
         self._index_name = index_name
@@ -81,6 +83,7 @@ class PineconeVectorStore:
         self._consistency_delay_seconds = consistency_delay_seconds
         self._index_factory = index_factory or self._default_index_factory
         self._index_descriptor = index_descriptor or self._default_index_descriptor
+        self._generation_repository = generation_repository
         self._compatibility_checked = False
         self._compatibility_lock = asyncio.Lock()
 
@@ -123,11 +126,12 @@ class PineconeVectorStore:
         *,
         model_name: str,
         dimension: int,
+        generation_id: UUID | None = None,
     ) -> VectorGenerationMetadata:
         self._validate_workspace(workspace_id)
         await self._ensure_compatible(dimension)
         self._validate_payloads(payloads, dimension)
-        generation_id = uuid4()
+        generation_id = generation_id or uuid4()
         indexes: dict[VectorIndexKind, VectorIndexMetadata] = {}
         records: list[dict[str, Any]] = []
         for kind, payload in payloads.items():
@@ -179,6 +183,8 @@ class PineconeVectorStore:
         try:
             async with self._index_factory() as index:
                 metadata = await self._wait_for_generation(index, workspace_id, generation_id)
+                if self._generation_repository is not None:
+                    return
                 previous = await self._active_generation(index, workspace_id, required=False)
                 await index.upsert(
                     vectors=[
@@ -213,10 +219,20 @@ class PineconeVectorStore:
     async def active_generation(self, workspace_id: str) -> UUID:
         """Return the currently activated Pinecone generation."""
         self._validate_workspace(workspace_id)
+        if self._generation_repository is not None:
+            return await self._generation_repository.active_generation(
+                workspace_id, GenerationKind.RETRIEVAL
+            )
         await self._ensure_compatible(self._dimension)
         try:
             async with self._index_factory() as index:
-                generation = await self._active_generation(index, workspace_id, required=True)
+                generation = (
+                    await self._generation_repository.active_generation(
+                        workspace_id, GenerationKind.RETRIEVAL
+                    )
+                    if self._generation_repository is not None
+                    else await self._active_generation(index, workspace_id, required=True)
+                )
         except IndexNotFoundError:
             raise
         except Exception as error:

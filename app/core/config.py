@@ -21,6 +21,24 @@ class Settings(BaseSettings):
     api_base_url: str = "http://127.0.0.1:8000"
     data_dir: Path = Path("data")
     evaluation_reports_dir: Path = Path("data/evaluations")
+    metadata_store_backend: Literal["memory", "postgresql"] = "memory"
+    source_storage_backend: Literal["local", "azure_blob"] = "local"
+    lexical_store_backend: Literal["local", "azure_blob"] = "local"
+    graph_store_backend: Literal["local", "neo4j"] = "local"
+    metadata_database_url: SecretStr | None = None
+    metadata_database_schema: str = Field(
+        default="rag", min_length=1, max_length=63, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$"
+    )
+    metadata_pool_size: int = Field(default=10, ge=1, le=100)
+    metadata_pool_timeout_seconds: float = Field(default=30, gt=0, le=120)
+    azure_blob_account_url: str | None = Field(default=None, min_length=1)
+    azure_blob_container: str | None = Field(default=None, min_length=1, max_length=63)
+    azure_storage_connection_string: SecretStr | None = None
+    lexical_cache_max_generations: int = Field(default=8, ge=1, le=100)
+    neo4j_uri: str | None = Field(default=None, min_length=1)
+    neo4j_username: str | None = Field(default=None, min_length=1)
+    neo4j_password: SecretStr | None = None
+    neo4j_database: str = Field(default="neo4j", min_length=1, max_length=63)
     max_pdf_size_bytes: int = Field(default=25 * 1024 * 1024, gt=0)
     pdf_chunk_size: int = Field(default=1200, ge=100)
     pdf_chunk_overlap: int = Field(default=200, ge=0)
@@ -107,6 +125,42 @@ class Settings(BaseSettings):
             <= 0
         ):
             raise ValueError("At least one fusion retriever weight must be positive")
+        required: list[str] = []
+        if self.metadata_store_backend == "postgresql" and self.metadata_database_url is None:
+            required.append("METADATA_DATABASE_URL")
+        if (
+            self.source_storage_backend == "azure_blob"
+            or self.lexical_store_backend == "azure_blob"
+        ):
+            if self.azure_blob_account_url is None and self.azure_storage_connection_string is None:
+                required.append("AZURE_BLOB_ACCOUNT_URL or AZURE_STORAGE_CONNECTION_STRING")
+            if self.azure_blob_container is None:
+                required.append("AZURE_BLOB_CONTAINER")
+        if self.graph_store_backend == "neo4j":
+            for name, value in (
+                ("NEO4J_URI", self.neo4j_uri),
+                ("NEO4J_USERNAME", self.neo4j_username),
+                ("NEO4J_PASSWORD", self.neo4j_password),
+            ):
+                if value is None:
+                    required.append(name)
+        if required:
+            raise ValueError(
+                "Production persistence configuration is incomplete: " + ", ".join(required)
+            )
+        if self.app_env == "production":
+            expected = {
+                "METADATA_STORE_BACKEND": (self.metadata_store_backend, "postgresql"),
+                "SOURCE_STORAGE_BACKEND": (self.source_storage_backend, "azure_blob"),
+                "LEXICAL_STORE_BACKEND": (self.lexical_store_backend, "azure_blob"),
+                "VECTOR_STORE_BACKEND": (self.vector_store_backend, "pinecone"),
+                "GRAPH_STORE_BACKEND": (self.graph_store_backend, "neo4j"),
+            }
+            invalid = [name for name, (actual, wanted) in expected.items() if actual != wanted]
+            if invalid:
+                raise ValueError(
+                    "Production requires durable persistence backends: " + ", ".join(invalid)
+                )
         return self
 
 

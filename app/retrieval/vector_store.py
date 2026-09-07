@@ -102,6 +102,7 @@ class VectorStore(Protocol):
         *,
         model_name: str,
         dimension: int,
+        generation_id: UUID | None = None,
     ) -> VectorGenerationMetadata:
         """Write every representation under one immutable generation."""
         ...
@@ -175,6 +176,7 @@ class FaissVectorStore:
         *,
         model_name: str,
         dimension: int,
+        generation_id: UUID | None = None,
     ) -> VectorGenerationMetadata:
         _validate_payloads(payloads, dimension)
         async with self._locks[workspace_id]:
@@ -190,6 +192,7 @@ class FaissVectorStore:
                 },
                 model_name,
                 dimension,
+                generation_id,
             )
 
     async def activate(self, workspace_id: str, generation_id: UUID) -> None:
@@ -232,9 +235,10 @@ class FaissVectorStore:
         payloads: Mapping[VectorIndexKind, VectorIndexPayload],
         model_name: str,
         dimension: int,
+        generation_id: UUID | None,
     ) -> VectorGenerationMetadata:
         workspace_directory = self._workspace_directory(workspace_id)
-        generation_id = uuid4()
+        generation_id = generation_id or uuid4()
         generation_directory = workspace_directory / "generations" / str(generation_id)
         generation_directory.mkdir(parents=True, exist_ok=False)
         indexes: dict[VectorIndexKind, VectorIndexMetadata] = {}

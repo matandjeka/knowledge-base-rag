@@ -85,14 +85,20 @@ class DeterministicGraphExtractor:
         return results
 
 
-async def _persist_ready_documents(storage: LocalSourceStorage, count: int = 3) -> None:
+async def _persist_ready_documents(
+    storage: LocalSourceStorage,
+    repository: InMemorySourceRepository,
+    count: int = 3,
+) -> None:
     for index in range(count):
         source = Source(
             workspace_id="workspace",
             name=f"source {index}",
             config=SourceConfig(source_type=SourceType.PDF),
-            status=SourceStatus.READY,
         )
+        await repository.create(source)
+        await repository.transition("workspace", source.source_id, SourceStatus.INDEXING)
+        await repository.transition("workspace", source.source_id, SourceStatus.READY)
         await storage.save_source(source)
         await storage.save_documents(
             "workspace",
@@ -112,13 +118,15 @@ async def _persist_ready_documents(storage: LocalSourceStorage, count: int = 3) 
 @pytest.mark.asyncio
 async def test_graph_indexing_batches_all_ready_documents_and_activates(tmp_path: Path) -> None:
     storage = LocalSourceStorage(tmp_path)
-    await _persist_ready_documents(storage)
+    repository = InMemorySourceRepository()
+    await _persist_ready_documents(storage, repository)
     failed_source = Source(
         workspace_id="workspace",
         name="failed source",
         config=SourceConfig(source_type=SourceType.PDF),
-        status=SourceStatus.FAILED,
     )
+    await repository.create(failed_source)
+    await repository.transition("workspace", failed_source.source_id, SourceStatus.FAILED)
     await storage.save_source(failed_source)
     await storage.save_documents(
         "workspace",
@@ -136,7 +144,7 @@ async def test_graph_indexing_batches_all_ready_documents_and_activates(tmp_path
     extractor = DeterministicGraphExtractor()
     store = LocalGraphStore(tmp_path)
     service = GraphIndexingService(
-        storage, extractor, store, batch_size=2, max_batch_characters=10_000
+        repository, storage, extractor, store, batch_size=2, max_batch_characters=10_000
     )
 
     result = await service.rebuild("workspace")
@@ -154,9 +162,11 @@ async def test_graph_indexing_batches_all_ready_documents_and_activates(tmp_path
 @pytest.mark.asyncio
 async def test_failed_rebuild_keeps_previous_graph_active(tmp_path: Path) -> None:
     storage = LocalSourceStorage(tmp_path)
-    await _persist_ready_documents(storage, count=1)
+    repository = InMemorySourceRepository()
+    await _persist_ready_documents(storage, repository, count=1)
     store = LocalGraphStore(tmp_path)
     successful = GraphIndexingService(
+        repository,
         storage,
         DeterministicGraphExtractor(),
         store,
@@ -165,6 +175,7 @@ async def test_failed_rebuild_keeps_previous_graph_active(tmp_path: Path) -> Non
     )
     original = await successful.rebuild("workspace")
     broken = GraphIndexingService(
+        repository,
         storage,
         DeterministicGraphExtractor(fail=True),
         store,
