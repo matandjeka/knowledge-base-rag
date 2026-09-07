@@ -39,3 +39,31 @@ def test_settings_require_at_least_one_positive_fusion_weight() -> None:
             fusion_graph_weight=0,
             fusion_lexical_weight=0,
         )
+
+
+def test_production_rejects_process_local_persistence_defaults() -> None:
+    with pytest.raises(ValidationError, match="durable persistence backends"):
+        Settings(_env_file=None, app_env="production")
+
+
+def test_production_accepts_complete_durable_persistence_configuration() -> None:
+    settings = Settings(
+        _env_file=None,
+        app_env="production",
+        metadata_store_backend="postgresql",
+        metadata_database_url="postgresql+asyncpg://user:secret@db.example/rag",
+        source_storage_backend="azure_blob",
+        lexical_store_backend="azure_blob",
+        azure_blob_account_url="https://storage.example.com",
+        azure_blob_container="rag",
+        vector_store_backend="pinecone",
+        pinecone_api_key="secret",
+        pinecone_index_name="rag",
+        pinecone_index_host="rag.example.pinecone.io",
+        graph_store_backend="neo4j",
+        neo4j_uri="neo4j+s://graph.example.com",
+        neo4j_username="neo4j",
+        neo4j_password="secret",
+    )
+
+    assert settings.metadata_store_backend == "postgresql"

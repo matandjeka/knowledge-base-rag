@@ -41,9 +41,9 @@ from app.models import (
     WebsiteIngestionRequest,
     WebsiteIngestionResult,
 )
-from app.repositories import InMemorySourceRepository
+from app.repositories import SourceRepository
 from app.retrieval.indexing import VectorIndexingService
-from app.storage import LocalSourceStorage
+from app.storage import SourceStorage
 
 router = APIRouter(prefix="/sources", tags=["sources"])
 
@@ -179,7 +179,7 @@ async def upload_csv(
 @router.get("", response_model=list[Source])
 async def list_sources(
     workspace_id: WorkspaceQuery,
-    repository: Annotated[InMemorySourceRepository, Depends(get_source_repository)],
+    repository: Annotated[SourceRepository, Depends(get_source_repository)],
 ) -> list[Source]:
     """List source metadata within one workspace."""
     return list(await repository.list(workspace_id))
@@ -189,7 +189,7 @@ async def list_sources(
 async def index_source(
     source_id: UUID,
     workspace_id: WorkspaceQuery,
-    repository: Annotated[InMemorySourceRepository, Depends(get_source_repository)],
+    repository: Annotated[SourceRepository, Depends(get_source_repository)],
     indexer: Annotated[VectorIndexingService, Depends(get_vector_indexing_service)],
 ) -> SourceIndexResult:
     """Explicitly rebuild retrieval indexes for a source's workspace."""
@@ -216,8 +216,8 @@ async def index_source(
 async def list_source_documents(
     source_id: UUID,
     workspace_id: WorkspaceQuery,
-    repository: Annotated[InMemorySourceRepository, Depends(get_source_repository)],
-    storage: Annotated[LocalSourceStorage, Depends(get_source_storage)],
+    repository: Annotated[SourceRepository, Depends(get_source_repository)],
+    storage: Annotated[SourceStorage, Depends(get_source_storage)],
 ) -> list[NormalizedDocument]:
     """Return persisted chunks and page locators for an accessible source."""
     try:

@@ -1,13 +1,15 @@
 # Advanced Multi-Source Enterprise RAG — Progress Tracker
 
 ## Overall Status
-**Last Reviewed:** September 6, 2026
+**Last Reviewed:** September 7, 2026
 
-**Last Completed Implementation Phase:** Phase 15 — Streamlit Application
+**Last Completed Implementation Phase:** Phase 16 — Production Persistence
 
-**Next Phase:** Phase 16 — Production Persistence (ready to architect)
+**Next Phase:** Phase 17 — Azure Deployment (planning next; resolve local embedding crash before end-to-end deployment validation)
 
-**Last Phase With All Exit Criteria Satisfied:** Phase 15 — Streamlit Application
+**Exit-Criteria Verification:** Automated local coverage exists through Phase 16. Live model
+quality, full UI ingestion/query reliability, and full-stack production restart recovery remain
+unverified; Phase 16 is implementation-complete, not deployment-validated.
 
 Phases 2–12 now provide ingestion, coordinated baseline, sentence-window, and lexical index
 generations for FAISS/Pinecone plus durable local BM25 storage, OpenAI-assisted knowledge-graph
@@ -19,15 +21,37 @@ validated inline markers, bounded citation inspection, versioned deployment-gate
 five-page Streamlit interface for chat, source management, retrieval experiments, evaluation
 inspection, and safe effective settings.
 
-**Build-plan alignment:** Phases 0–15 are complete. Phase 16 Production Persistence is next.
+**Build-plan alignment:** Phases 0–16 are implemented with passing automated regression coverage.
+Phase 17 Azure Deployment is next; Phases 17–19 have no completed deployment or hardening milestone.
 Tracker sections are grouped by subsystem, so their section numbers do not map one-to-one to the
-phase numbers in `build-plan.md`. The existing Pinecone adapter is preparatory work only: Phase 16
-remains incomplete until FAISS, local source files, process-local metadata, and the local graph are
-replaced by the production persistence stack specified in the build plan.
+phase numbers in `build-plan.md`. Production mode now requires the complete durable stack while
+the existing local adapters remain available for development, tests, and rollback.
 
-**Verification:** Ruff formatting and lint pass, strict mypy passes across 111 source files, and
-pytest reports `205 passed, 1 skipped`. The skipped test is the opt-in live OpenAI graph
-integration test.
+**Verification (rerun September 7, 2026):** `ruff check .` passes; `ruff format --check .`
+reports 123 files already formatted; strict `mypy` passes across 118 source files;
+`pytest -q` reports `212 passed, 1 skipped` in 14.76 seconds. The skipped test is the opt-in
+live OpenAI graph integration test. These checks do not exercise the failing live embedding load
+or establish real-provider retrieval quality.
+
+## Open Validation Work
+
+- [~] Diagnose the local API native crash (exit code 139) observed while loading
+  `BAAI/bge-small-en-v1.5`. Restarting with native thread limits restored `/health` and
+  `/sources?workspace_id=local` (HTTP 200), and the Streamlit health endpoint responded.
+  Successful embedding, ingestion, and query execution after that restart have not been verified.
+- [ ] Re-run PDF, website, and CSV ingestion plus a cited query through the UI after the
+  embedding issue is resolved (build-plan Phases 2–5 and 15 runtime acceptance).
+- [ ] Verify model-backed quality comparisons, including re-ranking improvement over fused-only
+  results (Phase 10). Deterministic fixtures and model doubles validate contracts and metrics;
+  they do not establish live cross-encoder quality.
+- [ ] Verify Phase 16 restart recovery using PostgreSQL, Azure Blob, Pinecone, and Neo4j together,
+  including indexed-data retrieval after restart. Current persistence tests use SQLite,
+  in-memory coordination, and simulated Blob storage; cloud provisioning is Phase 17 work.
+- [ ] Create Docker/deployment artifacts and configure Azure resources, Key Vault, monitoring,
+  and an end-to-end deployment smoke test (Phase 17). `docker/` and `scripts/` contain only placeholders.
+
+The phase table below tracks implementation completion. Subsystem exit-criteria summaries
+describe automated acceptance coverage, subject to the live-validation gaps above.
 
 ## Build-Plan Phase Status
 
@@ -49,7 +73,7 @@ integration test.
 | Phase 13 — Advanced Citation Engine | [x] Complete |
 | Phase 14 — Evaluation Framework | [x] Complete |
 | Phase 15 — Streamlit Application | [x] Complete |
-| Phase 16 — Production Persistence | [ ] Not started |
+| Phase 16 — Production Persistence | [x] Implemented; live stack restart verification pending |
 | Phase 17 — Azure Deployment | [ ] Not started |
 | Phase 18 — Optional Vercel Frontend | [ ] Not started |
 | Phase 19 — Enterprise Hardening | [ ] Not started |
@@ -321,6 +345,30 @@ the baseline-required `rag-evaluate` CLI ensure retrieval changes are evaluated 
 Existing specialized graph, routing, re-ranking, retrieval, and citation benchmarks remain
 independent regression suites.
 
+## Production Persistence (Build-plan Phase 16)
+
+- [x] PostgreSQL source metadata and lifecycle repository
+- [x] PostgreSQL operation, checkpoint, and active-generation authority
+- [x] Azure Blob original, normalized-document, manifest, and BM25 storage
+- [x] Pinecone generations coordinated by PostgreSQL activation state
+- [x] Neo4j native entity and relationship generations
+- [x] Alembic metadata schema migration
+- [x] Explicit resumable inventory, migrate, verify, and cutover CLI
+- [x] Production fail-closed backend validation
+- [x] Local development and rollback adapters retained
+- [x] Restart and incomplete-publication regression tests
+
+**Implementation status:** Complete
+
+**Exit criteria:** Locally tested; live stack verification pending — durable source lifecycle state, migration checkpoints, and active
+retrieval/graph generation pointers are authoritative in PostgreSQL. Azure Blob, Pinecone, and
+Neo4j artifacts are immutable and become visible only after all required stores verify and the
+coordinator atomically publishes the generation. A file-backed SQL restart test recreates the
+repository and confirms source and active-generation recovery, while coordinator tests prove
+partially prepared generations remain invisible. The production environment rejects every local
+backend; local data stays untouched for development and rollback. Live cloud provisioning and
+service-level smoke tests belong to Phase 17.
+
 ## 18. Observability
 - [ ] Trace IDs
 - [x] Structured logs
@@ -332,9 +380,9 @@ independent regression suites.
 
 ## 19. Security
 - [ ] JWT/OIDC integration
-- [ ] Workspace/tenant model
+- [~] Workspace/tenant model (workspace-scoped records implemented; authenticated tenant binding deferred)
 - [ ] Source authorization
-- [ ] Retrieval metadata filters
+- [~] Retrieval metadata filters (workspace/source filtering implemented; security-label authorization deferred)
 - [x] File validation
 - [x] Crawl allowlist
 - [~] Secret management (environment-backed references implemented; managed vault deferred)

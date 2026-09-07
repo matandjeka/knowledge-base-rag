@@ -7,6 +7,8 @@ from app.core.exceptions import IndexingError
 from app.graph.extraction import GRAPH_SCHEMA_VERSION, GraphExtractor, resolve_graph
 from app.graph.store import GraphStore
 from app.models import GraphIndexResult, GraphSnapshot, NormalizedDocument, SourceStatus
+from app.persistence import GenerationKind, PersistenceRepository
+from app.repositories import SourceRepository
 from app.storage import SourceStorage
 
 
@@ -15,24 +17,28 @@ class GraphIndexingService:
 
     def __init__(
         self,
+        repository: SourceRepository,
         storage: SourceStorage,
         extractor: GraphExtractor,
         graph_store: GraphStore,
         *,
         batch_size: int,
         max_batch_characters: int,
+        persistence_repository: PersistenceRepository | None = None,
     ) -> None:
+        self._repository = repository
         self._storage = storage
         self._extractor = extractor
         self._graph_store = graph_store
         self._batch_size = batch_size
         self._max_batch_characters = max_batch_characters
+        self._persistence_repository = persistence_repository
 
     async def rebuild(self, workspace_id: str) -> GraphIndexResult:
         """Extract, resolve, stage, validate, and activate one complete workspace graph."""
         sources = [
             source
-            for source in await self._storage.list_sources(workspace_id)
+            for source in await self._repository.list(workspace_id)
             if source.status is SourceStatus.READY
         ]
         if not sources:
@@ -58,8 +64,26 @@ class GraphIndexingService:
             entities=entities,
             relationships=relationships,
         )
-        metadata = await self._graph_store.prepare(snapshot)
-        await self._graph_store.activate(workspace_id, metadata.generation_id)
+        persistence = self._persistence_repository
+        operation = None
+        if persistence is not None:
+            operation = await persistence.begin_operation(
+                workspace_id, snapshot.generation_id, GenerationKind.GRAPH
+            )
+        try:
+            metadata = await self._graph_store.prepare(snapshot)
+            if operation is not None:
+                assert persistence is not None
+                await persistence.mark_prepared(operation.operation_id, "graph")
+            await self._graph_store.activate(workspace_id, metadata.generation_id)
+            if operation is not None:
+                assert persistence is not None
+                await persistence.publish(operation.operation_id, frozenset({"graph"}))
+        except Exception as error:
+            if operation is not None:
+                assert persistence is not None
+                await persistence.fail(operation.operation_id, type(error).__name__.lower())
+            raise
         return GraphIndexResult(
             workspace_id=workspace_id,
             generation_id=metadata.generation_id,

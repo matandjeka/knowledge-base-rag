@@ -29,6 +29,36 @@ class ActiveGenerationProvider(Protocol):
         ...
 
 
+class LexicalStore(Protocol):
+    """Persist and search immutable lexical generations."""
+
+    async def prepare(
+        self,
+        workspace_id: str,
+        documents: Sequence[NormalizedDocument],
+        *,
+        generation_id: UUID | None = None,
+    ) -> "LexicalIndexMetadata": ...
+
+    async def activate(self, workspace_id: str, generation_id: UUID) -> None: ...
+
+    async def active_generation(self, workspace_id: str) -> UUID: ...
+
+    async def restore_activation(self, workspace_id: str, generation_id: UUID | None) -> None: ...
+
+    async def search(
+        self,
+        workspace_id: str,
+        query: str,
+        *,
+        top_k: int,
+        source_ids: frozenset[UUID],
+        min_score: float,
+        title_boost: float,
+        expected_generation_id: UUID | None = None,
+    ) -> tuple["LexicalSearchMatch", ...]: ...
+
+
 def tokenize_lexical(text: str) -> tuple[str, ...]:
     """Return deterministic Unicode tokens while preserving enterprise identifiers."""
     normalized = unicodedata.normalize("NFKC", text).casefold()
@@ -334,7 +364,7 @@ class LexicalRetriever:
 
     def __init__(
         self,
-        store: LocalLexicalStore,
+        store: LexicalStore,
         *,
         title_boost: float = 0.5,
         generation_provider: ActiveGenerationProvider | None = None,

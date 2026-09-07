@@ -16,6 +16,10 @@ async def effective_settings() -> EffectiveSettings:
         app_name=settings.app_name,
         app_env=settings.app_env,
         vector_store_backend=settings.vector_store_backend,
+        metadata_store_backend=settings.metadata_store_backend,
+        source_storage_backend=settings.source_storage_backend,
+        lexical_store_backend=settings.lexical_store_backend,
+        graph_store_backend=settings.graph_store_backend,
         retrieval_top_k=settings.retrieval_top_k,
         retrieval_max_top_k=settings.retrieval_max_top_k,
         retrieval_min_similarity=settings.retrieval_min_similarity,
@@ -24,5 +28,12 @@ async def effective_settings() -> EffectiveSettings:
         ),
         sql_retrieval_configured=(
             settings.openai_api_key is not None and settings.sql_generation_model is not None
+        ),
+        production_persistence_ready=(
+            settings.metadata_store_backend == "postgresql"
+            and settings.source_storage_backend == "azure_blob"
+            and settings.lexical_store_backend == "azure_blob"
+            and settings.vector_store_backend == "pinecone"
+            and settings.graph_store_backend == "neo4j"
         ),
     )

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
-from app.api.dependencies import get_database_connection_manager
+from app.api.dependencies import close_application_dependencies
 from app.api.routes.evaluations import router as evaluations_router
 from app.api.routes.graph import router as graph_router
 from app.api.routes.health import router as health_router
@@ -26,7 +26,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        await get_database_connection_manager().close()
+        await close_application_dependencies()
 
 
 settings = get_settings()

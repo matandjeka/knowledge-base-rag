@@ -38,6 +38,48 @@ uv run pytest
 
 The API health endpoint is available at `http://127.0.0.1:8000/health`.
 
+## Production persistence
+
+Local development continues to use the in-memory source registry, filesystem artifacts, FAISS,
+and local graph generations. Production mode fails closed unless all durable adapters are
+configured: PostgreSQL for source metadata, lifecycle state, operation checkpoints, and active
+generation pointers; Azure Blob Storage for originals, normalized documents, crawl manifests,
+and immutable BM25 generations; Pinecone for vectors; and Neo4j for graph generations.
+
+Configure the `METADATA_*`, `AZURE_*`, `PINECONE_*`, and `NEO4J_*` variables documented in
+`.env.example`, then create the PostgreSQL schema before starting the application:
+
+```bash
+uv run alembic -x schema=rag upgrade head
+```
+
+Azure managed identity through `DefaultAzureCredential` is preferred. A storage connection string
+is supported for controlled migration and local integration environments. Secrets are accepted
+only through environment-backed settings and are omitted from effective-settings responses.
+
+Indexing stages immutable artifacts in every required store, verifies them, and publishes a single
+PostgreSQL generation pointer last. Readers therefore never see a partially written generation,
+and another application replica observes the same active state after restart.
+
+### Local-to-production migration
+
+The migration is explicit and resumable. It preserves source and generation UUIDs, records
+checksum checkpoints in PostgreSQL, and never deletes local data:
+
+```bash
+uv run rag-migrate-persistence inventory
+uv run rag-migrate-persistence migrate --dry-run
+uv run rag-migrate-persistence migrate
+uv run rag-migrate-persistence verify
+uv run rag-migrate-persistence cutover
+```
+
+Use `--workspace WORKSPACE_ID` to constrain a run and `--migration-id UUID` to resume a named
+migration. If verification or cutover fails, keep the application on local backend settings,
+correct the reported artifact, and rerun with the same migration ID. Rollback after cutover is a
+configuration rollback to the untouched local stores; remote generation cleanup is deliberately
+manual so a failed rollout cannot destroy the last known-good data.
+
 ## Web interface
 
 The Streamlit application provides five workflows through native multipage navigation:
