@@ -84,6 +84,7 @@ class QueryService:
                 source_ids=frozenset(request.source_ids),
                 modes=tuple(request.fusion_retrievers or DEFAULT_FUSION_RETRIEVERS),
                 strategy=request.fusion_strategy or FusionStrategy.RRF,
+                min_similarity=request.min_similarity,
             )
             if request.rerank:
                 if self._reranking_service is None:
@@ -107,18 +108,28 @@ class QueryService:
             if self._graph_retriever is None:
                 raise GraphIndexNotFoundError("Graph retrieval is not configured")
             retriever = self._graph_retriever
-            minimum_score = self._min_similarity
+            minimum_score = (
+                self._min_similarity if request.min_similarity is None else request.min_similarity
+            )
         elif request.retrieval_mode is RetrievalMode.LEXICAL:
             if self._lexical_retriever is None:
                 raise RetrievalError("Lexical retrieval is not configured")
             retriever = self._lexical_retriever
-            minimum_score = self._lexical_min_score
+            minimum_score = (
+                self._lexical_min_score
+                if request.min_similarity is None
+                else request.min_similarity
+            )
         elif request.retrieval_mode is RetrievalMode.SENTENCE_WINDOW:
             retriever = self._sentence_window_retriever
-            minimum_score = self._min_similarity
+            minimum_score = (
+                self._min_similarity if request.min_similarity is None else request.min_similarity
+            )
         else:
             retriever = self._retriever
-            minimum_score = self._min_similarity
+            minimum_score = (
+                self._min_similarity if request.min_similarity is None else request.min_similarity
+            )
         evidence = await retriever.retrieve(
             request.workspace_id,
             request.question,
@@ -160,6 +171,7 @@ class QueryService:
                 source_ids=frozenset(request.source_ids),
                 modes=DEFAULT_FUSION_RETRIEVERS,
                 strategy=FusionStrategy.RRF,
+                min_similarity=request.min_similarity,
             )
         self._log_route(request, trace)
         return await self._build_response(request.question, evidence, trace)
@@ -188,6 +200,7 @@ class QueryService:
             source_ids=source_ids,
             modes=modes,
             strategy=FusionStrategy.RRF,
+            min_similarity=request.min_similarity,
         )
 
     def _available_retrievers(self) -> frozenset[RetrievalMode]:

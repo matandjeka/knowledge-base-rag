@@ -50,6 +50,7 @@ class QueryRequest(BaseModel):
     workspace_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
     question: str = Field(min_length=1, max_length=4000)
     top_k: int | None = Field(default=None, ge=1, le=20)
+    min_similarity: float | None = Field(default=None, ge=-1, le=1)
     source_ids: list[UUID] = Field(default_factory=list)
     retrieval_mode: RetrievalMode = RetrievalMode.VECTOR
     fusion_retrievers: list[RetrievalMode] | None = None

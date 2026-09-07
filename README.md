@@ -38,6 +38,20 @@ uv run pytest
 
 The API health endpoint is available at `http://127.0.0.1:8000/health`.
 
+## Web interface
+
+The Streamlit application provides five workflows through native multipage navigation:
+
+- Chat uses automatic routing across selected ready sources.
+- Sources registers, lists, inspects, and re-indexes PDF, website, CSV, and PostgreSQL sources.
+- Retrieval Lab runs session-scoped explicit retrieval experiments.
+- Evaluation displays immutable benchmark reports and deployment gates.
+- Settings shows secret-safe effective backend configuration and session UI preferences.
+
+Evaluation reports are read from `data/evaluations` by default. Point
+`EVALUATION_REPORTS_DIR` at the output directory passed to `rag-evaluate` when reports are stored
+elsewhere. The MVP interface deliberately uses the fixed `local` workspace.
+
 ## Vector stores
 
 FAISS is the default local backend and requires no additional configuration.

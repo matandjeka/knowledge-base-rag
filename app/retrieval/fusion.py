@@ -58,6 +58,7 @@ class FusionRetriever:
         source_ids: frozenset[UUID],
         modes: tuple[RetrievalMode, ...],
         strategy: FusionStrategy,
+        min_similarity: float | None = None,
     ) -> list[Evidence]:
         """Return one deterministic fused list from all explicitly active retrievers."""
         if len(modes) < 2 or len(set(modes)) != len(modes):
@@ -78,7 +79,7 @@ class FusionRetriever:
                     min_similarity=(
                         self._lexical_min_score
                         if mode is RetrievalMode.LEXICAL
-                        else self._min_similarity
+                        else (self._min_similarity if min_similarity is None else min_similarity)
                     ),
                 )
                 for mode in modes

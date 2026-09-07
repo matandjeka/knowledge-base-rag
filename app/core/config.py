@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     api_port: int = Field(default=8000, ge=1, le=65535)
     api_base_url: str = "http://127.0.0.1:8000"
     data_dir: Path = Path("data")
+    evaluation_reports_dir: Path = Path("data/evaluations")
     max_pdf_size_bytes: int = Field(default=25 * 1024 * 1024, gt=0)
     pdf_chunk_size: int = Field(default=1200, ge=100)
     pdf_chunk_overlap: int = Field(default=200, ge=0)

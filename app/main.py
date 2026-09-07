@@ -7,9 +7,11 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from app.api.dependencies import get_database_connection_manager
+from app.api.routes.evaluations import router as evaluations_router
 from app.api.routes.graph import router as graph_router
 from app.api.routes.health import router as health_router
 from app.api.routes.query import router as query_router
+from app.api.routes.settings import router as settings_router
 from app.api.routes.sources import router as sources_router
 from app.core.config import get_settings
 from app.core.exceptions import GraphConfigurationError
@@ -44,3 +46,5 @@ app.include_router(health_router)
 app.include_router(graph_router)
 app.include_router(sources_router)
 app.include_router(query_router)
+app.include_router(evaluations_router)
+app.include_router(settings_router)
