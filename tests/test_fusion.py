@@ -430,12 +430,14 @@ async def test_query_service_returns_fused_response() -> None:
             question="What is the policy?",
             retrieval_mode=RetrievalMode.FUSION,
             fusion_retrievers=[RetrievalMode.VECTOR, RetrievalMode.LEXICAL],
+            min_similarity=0.25,
         )
     )
 
     assert len(response.evidence) == 1
     assert response.evidence[0].retriever == "fusion"
     assert response.citations[0].source_id == source.source_id
+    assert vector.calls[0][1] == 0.25
 
 
 @pytest.mark.asyncio

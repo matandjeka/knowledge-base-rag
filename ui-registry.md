@@ -82,3 +82,92 @@ Last updated: September 4, 2026
 source title or type, and human-readable locator. Show claim associations before the excerpt and
 keep retrieval diagnostics visually secondary. Only website citations receive an outbound action;
 PDF, CSV, and database locators remain descriptive until secured source viewing exists.
+
+### Multipage Navigation
+
+File: ui/streamlit_app.py
+Last updated: September 4, 2026
+
+| Property | Class or pattern |
+| --- | --- |
+| Background | Native Streamlit page and sidebar theme |
+| Border | Native navigation group treatment |
+| Border radius | Native Streamlit component radius |
+| Text — primary | `st.title` per page and `st.header` in the sidebar |
+| Text — secondary | `st.caption` for workspace and page purpose |
+| Spacing | Native `st.navigation` page-group spacing |
+| Hover state | Native `st.Page` navigation state |
+| Shadow | None |
+| Accent usage | Native active-page treatment and semantic page icons |
+
+**Pattern notes:** Group end-user knowledge workflows separately from diagnostic workflows. Every
+page starts with one title and a short muted purpose statement. Keep the fixed workspace visible in
+the sidebar rather than repeating workspace controls on every page.
+
+### Operational Data Panels
+
+File: ui/pages.py
+Last updated: September 4, 2026
+
+| Property | Class or pattern |
+| --- | --- |
+| Background | Native tabs, expanders, metric cards, dataframes, and charts |
+| Border | Native Streamlit component borders |
+| Border radius | Native Streamlit component radius |
+| Text — primary | `st.subheader`, `st.metric`, and dataframe headings |
+| Text — secondary | `st.caption` for identity, timestamps, and scope |
+| Spacing | Native columns plus expanders for secondary detail |
+| Hover state | Native table, chart, tab, and expander states |
+| Shadow | None |
+| Accent usage | Primary full-width buttons only for execution actions |
+
+**Pattern notes:** Show the small decision-making metric set first, then place configuration,
+slices, document bodies, and case diagnostics inside native expanders. Use tables for exact records,
+metric cards for headline values, and charts only for multi-metric comparison. Empty and unavailable
+states remain native `st.info` and `st.error` messages. Charts must contain values with compatible
+units; latency and cost stay outside unit-interval quality charts. Respect the session table-size
+preference when rendering potentially long operational records.
+
+### Source Registration Forms
+
+File: ui/pages.py
+Last updated: September 4, 2026
+
+| Property | Class or pattern |
+| --- | --- |
+| Background | Native tab with source-type radio selection |
+| Border | Native input and expander borders |
+| Border radius | Native Streamlit component radius |
+| Text — primary | Native form labels |
+| Text — secondary | `st.caption` for counts and validation context |
+| Spacing | One source workflow at a time with native vertical spacing |
+| Hover state | Native uploader, input, radio, and button states |
+| Shadow | None |
+| Accent usage | Full-width primary button for the final ingestion action |
+
+**Pattern notes:** Keep source-type workflows mutually exclusive, preview structured uploads before
+ingestion, and disable final actions until required inputs are present. Advanced database controls
+remain inside an expanded native panel and accept environment-variable references rather than
+credentials.
+
+### Retrieval Experiment Feedback
+
+File: ui/pages.py and ui/renderers.py
+Last updated: September 6, 2026
+
+| Property | Class or pattern |
+| --- | --- |
+| Background | Native response body, captions, and diagnostic expanders |
+| Border | Native Streamlit expander border |
+| Border radius | Native Streamlit component radius |
+| Text — primary | `st.write` for answer and ranked evidence content |
+| Text — secondary | `st.caption` for total API time, scores, and routing time |
+| Spacing | Native vertical response flow with secondary detail below the answer |
+| Hover state | Native expander state |
+| Shadow | None |
+| Accent usage | Native informational and error feedback only |
+
+**Pattern notes:** Display client-observed total API duration before the response diagnostics and
+keep routing-only time within the routing expander. Citation, evidence, and routing expanders follow
+the session diagnostic-expansion preference consistently. Hide unavailable retrieval modes and
+disable invalid source-specific actions before submission.

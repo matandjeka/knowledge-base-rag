@@ -209,8 +209,9 @@ async def test_query_service_requests_reranking_candidate_pool_then_returns_top_
             source_ids: frozenset[UUID],
             modes: tuple[RetrievalMode, ...],
             strategy: FusionStrategy,
+            min_similarity: float | None = None,
         ) -> list[Evidence]:
-            del workspace_id, query, source_ids, modes, strategy
+            del workspace_id, query, source_ids, modes, strategy, min_similarity
             self.top_k = top_k
             return candidates[:top_k]
 

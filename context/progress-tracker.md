@@ -1,13 +1,13 @@
 # Advanced Multi-Source Enterprise RAG — Progress Tracker
 
 ## Overall Status
-**Last Reviewed:** September 4, 2026
+**Last Reviewed:** September 6, 2026
 
-**Last Completed Implementation Phase:** Phase 14 — Evaluation Framework
+**Last Completed Implementation Phase:** Phase 15 — Streamlit Application
 
-**Next Phase:** Phase 15 — Streamlit Application (ready to architect)
+**Next Phase:** Phase 16 — Production Persistence (ready to architect)
 
-**Last Phase With All Exit Criteria Satisfied:** Phase 14 — Evaluation Framework
+**Last Phase With All Exit Criteria Satisfied:** Phase 15 — Streamlit Application
 
 Phases 2–12 now provide ingestion, coordinated baseline, sentence-window, and lexical index
 generations for FAISS/Pinecone plus durable local BM25 storage, OpenAI-assisted knowledge-graph
@@ -15,15 +15,44 @@ extraction, durable local graph generations, independently selectable or concurr
 vector/window/graph/lexical retrieval, optional cross-encoder re-ranking with source diversity,
 PostgreSQL-first structured retrieval with AST-validated read-only SQL and server-enforced tenant
 filters, deterministic source-aware query routing, grounded answers, typed source locators,
-validated inline markers, bounded citation inspection, and versioned deployment-gate evaluation.
+validated inline markers, bounded citation inspection, versioned deployment-gate evaluation, and a
+five-page Streamlit interface for chat, source management, retrieval experiments, evaluation
+inspection, and safe effective settings.
 
-**Build-plan alignment:** Phases 0–14 are complete. Phase 15 Streamlit application is next. Tracker
-sections are grouped by subsystem, so their section numbers do not map one-to-one to the phase
-numbers in `build-plan.md`.
+**Build-plan alignment:** Phases 0–15 are complete. Phase 16 Production Persistence is next.
+Tracker sections are grouped by subsystem, so their section numbers do not map one-to-one to the
+phase numbers in `build-plan.md`. The existing Pinecone adapter is preparatory work only: Phase 16
+remains incomplete until FAISS, local source files, process-local metadata, and the local graph are
+replaced by the production persistence stack specified in the build plan.
 
-**Verification:** Ruff formatting and lint pass, strict mypy passes across 104 source files, and
-pytest reports `197 passed, 1 skipped`. The skipped test is the opt-in live OpenAI graph
+**Verification:** Ruff formatting and lint pass, strict mypy passes across 111 source files, and
+pytest reports `205 passed, 1 skipped`. The skipped test is the opt-in live OpenAI graph
 integration test.
+
+## Build-Plan Phase Status
+
+| Build-plan phase | Status |
+| --- | --- |
+| Phase 0 — Project Foundation | [x] Complete |
+| Phase 1 — Canonical Source Model | [x] Complete |
+| Phase 2 — PDF Ingestion | [x] Complete |
+| Phase 3 — Website Ingestion | [x] Complete |
+| Phase 4 — CSV Ingestion | [x] Complete |
+| Phase 5 — Baseline Vector RAG | [x] Complete |
+| Phase 6 — Sentence-Window Retrieval | [x] Complete |
+| Phase 7 — Knowledge Graph Retrieval | [x] Complete |
+| Phase 8 — Optional BM25 / Lexical Retriever | [x] Complete |
+| Phase 9 — Fusion Layer | [x] Complete |
+| Phase 10 — Re-ranking | [x] Complete |
+| Phase 11 — Structured Database Retrieval | [x] Complete |
+| Phase 12 — Query Router | [x] Complete |
+| Phase 13 — Advanced Citation Engine | [x] Complete |
+| Phase 14 — Evaluation Framework | [x] Complete |
+| Phase 15 — Streamlit Application | [x] Complete |
+| Phase 16 — Production Persistence | [ ] Not started |
+| Phase 17 — Azure Deployment | [ ] Not started |
+| Phase 18 — Optional Vercel Frontend | [ ] Not started |
+| Phase 19 — Enterprise Hardening | [ ] Not started |
 
 ## Status Legend
 - [ ] Not started
@@ -243,7 +272,7 @@ question text, unavailable graph indexes safely fall back to default fusion, and
 ## 16. Streamlit UI
 - [x] App shell
 - [x] Sidebar
-- [ ] Source manager
+- [x] Source manager
 - [x] PDF upload
 - [x] Website form
 - [x] CSV upload
@@ -252,7 +281,21 @@ question text, unavailable graph indexes safely fall back to default fusion, and
 - [x] Citation badges
 - [x] Source inspector
 - [x] Retrieval trace panel
-- [ ] Evaluation dashboard
+- [x] Evaluation dashboard
+
+**Implementation status:** Complete
+
+**Exit criteria:** Complete — the native Streamlit multipage shell exposes Chat, Sources,
+Retrieval Lab, Evaluation, and Settings through one typed FastAPI client. The source manager lists,
+inspects, registers, and explicitly re-indexes supported sources; session-scoped retrieval
+experiments expose valid query controls without mutating backend defaults; and read-only,
+path-safe evaluation APIs power report metrics, slices, case diagnostics, and deployment gates.
+Effective settings are secret-safe, the workspace remains explicitly fixed to `local`, and the
+application passes API, UI-boundary, strict typing, formatting, full regression, and server-startup
+checks. Post-review hardening adds typed ingestion contracts, operation-specific timeouts,
+short-lived read caches with mutation invalidation, functional display preferences, source-aware
+SQL and inspection controls, end-to-end experiment timing, unit-correct evaluation charts, and
+visible invalid-report diagnostics.
 
 ## 17. Evaluation
 - [x] Golden question set (40-case unified suite plus focused regression benchmarks)
@@ -340,18 +383,25 @@ PDF + website + CSV + vector retrieval + citations.
 Status: [x]
 
 Completed through Phases 2–5 with cross-source vector retrieval, grounded answers, and
-source-specific PDF page, website URL, and CSV row citations. Advanced inline rendering
-and evidence inspection remain part of Phase 13 and are not required for this milestone.
+source-specific PDF page, website URL, and CSV row citations. Advanced inline rendering and
+evidence inspection were subsequently completed in Phase 13.
 
 ### Milestone B — Advanced Retrieval
 Sentence windows + graph + BM25 + fusion + re-ranking.
 
-Status: [ ]
+Status: [x]
+
+Completed through Phases 6–10 with independently selectable sentence-window, graph, and lexical
+retrieval, deterministic fusion, and optional cross-encoder re-ranking backed by focused
+benchmarks.
 
 ### Milestone C — Enterprise UX
 Streamlit source manager + chat + evidence inspector + evaluation.
 
-Status: [ ]
+Status: [x]
+
+Completed through Phases 13–15 with inspectable claim-level citations, source management, routed
+chat, retrieval diagnostics, and immutable evaluation-report visualization.
 
 ### Milestone D — Production Deployment
 Azure persistence and deployment, optionally Vercel frontend.
