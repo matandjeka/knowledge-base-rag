@@ -215,12 +215,23 @@ class WebsiteCrawler:
         self._default_delay = default_delay_seconds
 
     async def crawl(
-        self, seed_url: str, *, crawl_same_domain: bool, page_limit: int
+        self,
+        seed_url: str,
+        *,
+        crawl_same_domain: bool,
+        page_limit: int,
+        allowed_domains: list[str] | None = None,
     ) -> WebsiteCrawl:
-        """Return extracted pages in deterministic breadth-first order."""
+        """Return extracted pages in deterministic breadth-first order.
+
+        ``allowed_domains`` (when set) restricts the seed and every fetched host to the given
+        domain patterns; ``example.com`` also matches its subdomains.
+        """
         seed = normalize_url(seed_url)
         await validate_url_shape(seed)
         seed_host = urlsplit(seed).hostname
+        if not domain_allowed(seed_host, allowed_domains):
+            raise WebsiteValidationError("The seed domain is not in the workspace crawl allowlist")
         robots = await self._load_robots(seed)
         robots_delay = robots.crawl_delay(self._user_agent)
         delay = float(robots_delay) if robots_delay is not None else self._default_delay
@@ -326,6 +337,20 @@ def normalize_url(value: str) -> str:
 async def validate_url_shape(url: str) -> None:
     """Validate URL syntax without making a network request."""
     normalize_url(url)
+
+
+def domain_allowed(host: str | None, patterns: list[str] | None) -> bool:
+    """Return whether ``host`` matches an allowlist pattern (or the allowlist is unset)."""
+    if not patterns:
+        return True
+    if not host:
+        return False
+    host = host.lower().rstrip(".")
+    for pattern in patterns:
+        cleaned = pattern.lower().strip().removeprefix("*.").rstrip(".")
+        if cleaned and (host == cleaned or host.endswith("." + cleaned)):
+            return True
+    return False
 
 
 async def resolve_host(host: str, port: int) -> tuple[str, ...]:

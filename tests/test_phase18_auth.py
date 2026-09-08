@@ -111,11 +111,20 @@ async def test_api_rejects_foreign_workspaces_and_credentials(
     auth: AuthService, monkeypatch: Any
 ) -> None:
     import app.auth.authorization as authorization
+    import app.auth.org_routes as org_routes
+    import app.auth.routes as auth_routes
+    from app.auth.organizations import OrganizationRepository
 
-    await auth.register("client@example.com", "a-secure-password")
+    user = await auth.register("client@example.com", "a-secure-password")
+    await OrganizationRepository(auth.engine).create_personal_organization(
+        user_id=user["id"], email=user["email"], workspace_id=user["workspace_id"]
+    )
     session, _ = await auth.login("client@example.com", "a-secure-password")
+    for module in (authorization, auth_routes, org_routes):
+        monkeypatch.setattr(module, "get_metadata_engine", lambda: auth.engine)
     monkeypatch.setattr(authorization, "get_auth_service", lambda: auth)
     monkeypatch.setattr(authorization, "get_settings", lambda: auth.settings)
+    monkeypatch.setattr(auth_routes, "get_settings", lambda: auth.settings)
     app.dependency_overrides[get_settings] = lambda: auth.settings
     try:
         async with httpx.AsyncClient(

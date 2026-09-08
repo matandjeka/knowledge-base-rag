@@ -1,10 +1,11 @@
 """Baseline workspace-scoped retrieval and grounded-answer route."""
 
+import contextlib
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from app.api.dependencies import get_query_service
+from app.api.dependencies import get_metadata_engine, get_query_service
 from app.core.exceptions import (
     DatabaseConfigurationError,
     DatabaseExecutionError,
@@ -16,20 +17,31 @@ from app.core.exceptions import (
     SourceNotFoundError,
     SqlValidationError,
 )
-from app.models import QueryRequest, QueryResponse
+from app.core.rate_limit import rate_limit
+from app.models import Classification, QueryRequest, QueryResponse
 from app.retrieval.query_service import QueryService
 
 router = APIRouter(tags=["query"])
 
 
-@router.post("/query", response_model=QueryResponse, response_model_exclude_none=True)
+@router.post(
+    "/query",
+    response_model=QueryResponse,
+    response_model_exclude_none=True,
+    dependencies=[rate_limit("query", "rate_limit_query_per_minute")],
+)
 async def query_knowledge_base(
     request: QueryRequest,
+    http_request: Request,
     service: Annotated[QueryService, Depends(get_query_service)],
 ) -> QueryResponse:
     """Retrieve workspace evidence and return an extractive cited response."""
+    membership = getattr(http_request.state, "membership", None)
+    clearance = (
+        membership.effective_clearance if membership is not None else Classification.RESTRICTED
+    )
     try:
-        return await service.query(request)
+        response = await service.query(request, max_classification=clearance)
     except SourceNotFoundError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Source not found"
@@ -60,3 +72,9 @@ async def query_knowledge_base(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(error)
         ) from error
+    if membership is not None:
+        from app.retention import RetentionRepository
+
+        with contextlib.suppress(Exception):
+            await RetentionRepository(get_metadata_engine()).record_query(request.workspace_id)
+    return response

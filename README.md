@@ -274,3 +274,31 @@ index migration, verification, and rollback. Azure deployment (Phase 17) remains
 Phase 18 deployment acceptance remains pending until service credentials, email delivery,
 and live preview smoke tests are complete. Run `uv run python scripts/check_phase18_config.py`
 to list missing configuration names without displaying secrets.
+
+## Phase 19 — Enterprise hardening
+
+Ships as three sub-milestones (`context/design/phase19.md`). **19a — identity & access** is
+implemented: an organization owns one workspace, users join with a role
+(`viewer` < `member` < `admin` < `owner`), and every mutating endpoint is role-gated in
+`app/auth/authorization.py`. Registration auto-creates a personal organization, so the existing
+single-user flow is unchanged. Manage members and invitations under `/orgs` (admin+); run
+`alembic upgrade head` to apply `20260908_0003`, which backfills a personal organization for
+every existing account. Invitations reuse `AUTH_EMAIL_WEBHOOK_*` with a new `invite` template.
+Organization features require `AUTH_ENABLED`; local Streamlit mode stays single-tenant.
+
+### Phase 19b — governance
+
+Hash-chained audit log (`app/audit/`, `GET /audit/events` + `rag-audit verify`), per-workspace
+retention policies (`GET/PUT /retention`, `rag-retention apply [--dry-run]` with a 30-day audit
+floor), and source security labels: a `Classification` (`public` < `internal` < `confidential` <
+`restricted`) on each source and a per-member `clearance` that filters `GET /sources`, source
+inspection, and every retriever's candidate set. Apply `20260908_0004` with `alembic upgrade head`.
+
+### Phase 19c — abuse & content safety
+
+Applies in local and authenticated mode. A root-handler log filter (`app/core/redaction.py`)
+masks e-mails, bearer tokens, and secrets. Fixed-window rate limiting (`RATE_LIMIT_*`) guards
+`/query`, ingestion, and `POST /jobs` (429 + `Retry-After`). A non-blocking heuristic scan
+(`app/ingestion/injection_scan.py`) marks sources containing prompt-injection patterns
+(`config.options.injection_flags`), and the OpenAI graph/SQL callers delimiter-wrap untrusted
+content. `GET/PUT /crawl-allowlist` (admin+) sets a per-workspace list of crawlable domains.

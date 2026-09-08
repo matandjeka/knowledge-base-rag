@@ -35,7 +35,14 @@ Phase 17 Azure Deployment is skipped. Phase 18 (Optional Vercel Frontend) is in 
 backend-hosting question was resolved by targeting two Vercel projects (FastAPI API + Next.js
 frontend) with Vercel Blob, hosted Voyage embeddings/reranking, a new 1,024-dim Pinecone index,
 self-registration auth with per-client workspace isolation, and Vercel Workflow-orchestrated
-durable jobs. Phase 19 remains unstarted.
+durable jobs. Phase 19 (Enterprise Hardening) is implemented on branch `19a-identity-access` —
+19a identity & access (organizations, memberships, roles, invitations, centrally role-gated
+endpoints), 19b governance (hash-chained audit log, retention policies + `rag-retention` purge
+CLI, source security labels with clearance-filtered retrieval), and 19c abuse & content safety
+(PII-redacting logs, per-caller rate limiting, non-blocking prompt-injection ingestion scan +
+LLM-caller delimiting, per-workspace crawl domain allowlist). Not deployed/live-verified; the
+governance admin UI and a few audit emit points are tracked follow-ups. Design and threat
+model: `context/design/phase19.md`.
 Tracker sections are grouped by subsystem, so their section numbers do not map one-to-one to the
 phase numbers in `build-plan.md`. Production mode now requires the complete durable stack while
 the existing local adapters remain available for development, tests, and rollback.
@@ -117,7 +124,7 @@ describe automated acceptance coverage, subject to the live-validation gaps abov
 | Phase 16 — Production Persistence | [x] Implemented; live stack restart verification pending |
 | Phase 17 — Azure Deployment | [-] Skipped by user; not implemented |
 | Phase 18 — Optional Vercel Frontend | [~] In progress — code across frontend/auth/hosted-models/jobs; offline suite green after review fixes; not deployed or cloud-verified |
-| Phase 19 — Enterprise Hardening | [ ] Not started |
+| Phase 19 — Enterprise Hardening | [x] Implemented + code-reviewed (branch `19a-identity-access`, offline suite green: 256 passed). 19a identity & access, 19b governance, 19c abuse/content safety. Review fixes applied: audit `verify_chain` anchors to the first surviving event so retention prefix-purge no longer breaks it; durable-jobs ingestion now runs the injection scan + crawl allowlist; `record_query` upserts (PostgreSQL-safe); redaction preserves UUIDs/hashes; HTTP tests added for the audit/retention/crawl-allowlist endpoints. Not deployed/live-verified; governance admin UI + session-reuse audit emit are tracked follow-ups. |
 
 ## Status Legend
 - [ ] Not started
@@ -413,7 +420,8 @@ service-level smoke tests belong to Phase 17.
 
 ## 18. Observability
 - [ ] Trace IDs
-- [x] Structured logs
+- [x] Structured logs (Phase 19c adds a PII/secret redaction filter on the root handler)
+- [x] Audit trail (Phase 19b — hash-chained `rag_audit_events`, `GET /audit/events|verify`)
 - [ ] Retriever timings
 - [x] Fusion trace
 - [x] Re-ranker trace
@@ -424,19 +432,45 @@ service-level smoke tests belong to Phase 17.
 - [~] JWT/OIDC integration (Phase 18: self-registration, Argon2 password hashing, JWT access
   tokens, and one-use rotating refresh tokens implemented in `app/auth/`; gated behind
   `AUTH_ENABLED`; no external OIDC provider; not verified against live PostgreSQL)
-- [~] Workspace/tenant model (workspace-scoped records implemented; Phase 18 adds one private
-  workspace per registered client with `app/auth/authorization.py` ownership checks; authenticated
-  tenant binding still off by default)
-- [~] Source authorization (Phase 18 request-time workspace-ownership enforcement for source
-  list/query/inspect/download; security-label authorization deferred)
-- [~] Retrieval metadata filters (workspace/source filtering implemented; security-label authorization deferred)
+- [x] Organization / RBAC model (Phase 19a — branch `19a-identity-access`): `rag_organizations`
+  + `rag_memberships` + `rag_invitations`; an organization owns one workspace; registration
+  auto-creates a personal org (`owner`); roles `viewer` < `member` < `admin` < `owner` gate
+  every mutation centrally in `authorize()`; `/orgs` router manages members and invitations;
+  migration `20260908_0003` backfills personal orgs; `/auth/me` self-heals and lists orgs.
+  Not yet deployed/live-verified; Streamlit/Next.js admin UI deferred to 19c UI budget.
+- [x] Source authorization (Phase 18 request-time workspace-ownership; Phase 19a: membership +
+  role check with a single-workspace-per-request rule; Phase 19b: `Classification` label on each
+  source + per-membership `clearance` gate `GET /sources`, inspection, and retrieval)
+- [x] Retrieval metadata filters (workspace/source filtering; Phase 19b threads a clearance-derived
+  visible-source-id set through every retriever and the auto router so above-clearance content
+  never enters the candidate set)
+- [x] Audit logging (Phase 19b — `app/audit/`): append-only `rag_audit_events` with a per-org
+  hash chain, `AuditRepository` (append/read/verify/prefix-purge only), `record()` emit points
+  across org + membership + governance actions, `GET /audit/events|verify` (admin+), and the
+  `rag-audit verify` CLI. Auth-event / source-registration emission deferred to 19c.
+- [x] Retention policies (Phase 19b — `app/retention/`): per-workspace day windows for source
+  data / audit events / query counters (default keep-forever), `rag-retention apply [--dry-run]`
+  cascading purge with a 30-day audit floor and a `retention.purged` audit trail, `GET/PUT
+  /retention` (admin+). Vector/graph generation GC deferred (immutable-generation design).
 - [x] File validation
 - [x] Crawl allowlist
 - [~] Secret management (environment-backed references implemented; Phase 18 adds `SecretStr`
   config for Blob, JWT, workflow, Voyage, and mail-webhook secrets with fail-closed validation;
   managed vault deferred)
 - [x] SQL read-only enforcement
-- [ ] Prompt injection mitigation
+- [x] Prompt injection mitigation (Phase 19c): non-blocking `app/ingestion/injection_scan.py`
+  heuristic marks suspicious sources (`injection_flags`); OpenAI graph-extraction and NL→SQL
+  callers delimiter-wrap untrusted content, and structured-output + substring / AST validation
+  reject non-grounded output. No guard LLM.
+- [x] Rate limiting (Phase 19c — `app/core/rate_limit.py`): fixed-window per-user / per-IP
+  counters (`rag_rate_limits`, in-memory fallback) on `/query`, ingestion, and `POST /jobs`;
+  `RATE_LIMIT_*` settings; 429 + `Retry-After`.
+- [x] PII-aware logging (Phase 19c — `app/core/redaction.py`): root-handler `logging.Filter`
+  masks bearer tokens, key/value secrets, e-mails, and long opaque strings in the message and
+  non-allowlisted extras.
+- [x] Crawl allowlist (Phase 19c): per-workspace `rag_retention_policies.crawl_allowlist`,
+  `GET/PUT /crawl-allowlist` (admin+), enforced on the seed host with subdomain matching; the
+  always-on SSRF / non-global-IP guard remains beneath it.
 - [x] Email verification / password recovery (single-use, one-hour tokens via transactional mail
   webhook; required before public registration is allowed)
 

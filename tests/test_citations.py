@@ -206,7 +206,7 @@ def test_citation_contract_rejects_a_mismatched_typed_locator() -> None:
 @pytest.mark.asyncio
 async def test_query_api_maps_invalid_generation_and_preserves_optional_fields() -> None:
     class StubQueryService:
-        async def query(self, request: QueryRequest) -> QueryResponse:
+        async def query(self, request: QueryRequest, **_kwargs: object) -> QueryResponse:
             if request.question == "invalid":
                 raise GenerationError("Generated answer references an unknown citation")
             return QueryResponse(answer="No evidence", insufficient_evidence=True)
@@ -242,7 +242,7 @@ async def test_query_api_serializes_populated_typed_citation_contract() -> None:
     )[0]
 
     class StubQueryService:
-        async def query(self, request: QueryRequest) -> QueryResponse:
+        async def query(self, request: QueryRequest, **_kwargs: object) -> QueryResponse:
             del request
             return QueryResponse(
                 answer="Supported answer. [S1]",

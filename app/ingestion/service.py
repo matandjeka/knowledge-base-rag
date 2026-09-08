@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app.core.exceptions import IngestionError
+from app.ingestion.injection_scan import scan_documents
 from app.ingestion.pdf import ParsedPdfPage, PdfConnector, chunk_text
 from app.models import (
     NormalizedDocument,
@@ -87,6 +88,12 @@ class PdfIngestionService:
 
             documents = self.build_documents(source, parsed.pages, locator)
             await self._storage.save_documents(workspace_id, source.source_id, documents)
+            flags = scan_documents(documents)
+            if flags:
+                logger.warning(
+                    "Ingested content flagged for possible prompt injection",
+                    extra={"workspace_id": workspace_id, "action": "ingestion.flagged"},
+                )
             source = await self._repository.update(
                 workspace_id,
                 source.source_id,
@@ -96,6 +103,7 @@ class PdfIngestionService:
                             "options": {
                                 **source.config.options,
                                 "chunk_count": len(documents),
+                                **({"injection_flags": flags} if flags else {}),
                             }
                         },
                         deep=True,

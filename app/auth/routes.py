@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 
 from app.api.dependencies import get_metadata_engine
+from app.auth.organizations import OrganizationRepository
 from app.auth.service import AuthService, users
 from app.core.config import get_settings
 
@@ -97,6 +98,14 @@ async def register(
     check_origin(request)
     await auth.throttle("register:" + (request.client.host if request.client else "unknown"))
     user = await auth.register(body.email, body.password)
+    try:
+        await OrganizationRepository(auth.engine).create_personal_organization(
+            user_id=user["id"], email=user["email"], workspace_id=user["workspace_id"]
+        )
+    except Exception:
+        # Roll the account back so the address can be reused after a transient failure.
+        await auth.delete_unprovisioned_user(user["id"])
+        raise
     if get_settings().auth_require_verification:
         token = await auth.issue_email_token(user["id"], "verify")
         await send_link(body.email, token, "verify")
@@ -119,9 +128,47 @@ async def login(
     await auth.throttle(
         "login-ip:" + (request.client.host if request.client else "unknown"), maximum=50
     )
-    result, refresh = await auth.login(body.email, body.password)
+    ip = request.client.host if request.client else None
+    try:
+        result, refresh = await auth.login(body.email, body.password)
+    except HTTPException:
+        await _audit_login(auth, body.email, "auth.login_failed", ip)
+        raise
     cookie(response, refresh)
+    await _audit_login(auth, body.email, "auth.login", ip, user_id=result["user"]["id"])
     return result
+
+
+async def _audit_login(
+    auth: AuthService, email: str, action: str, ip: str | None, *, user_id: str | None = None
+) -> None:
+    """Best-effort auth-event audit against the account's personal organization."""
+    from app.audit import AuditRepository
+    from app.auth.organizations import OrganizationRepository
+
+    try:
+        organizations = OrganizationRepository(auth.engine)
+        if user_id is None:
+            async with auth.engine.connect() as conn:
+                row = (
+                    await conn.execute(select(users.c.id).where(users.c.email == email.lower()))
+                ).first()
+            if row is None:
+                return
+            user_id = row[0]
+        orgs = await organizations.organizations_for_user(user_id)
+        personal = next((org for org in orgs if org.is_personal), None)
+        if personal is None:
+            return
+        await AuditRepository(auth.engine).append(
+            org_id=personal.id,
+            action=action,
+            workspace_id=personal.workspace_id,
+            actor_user_id=user_id,
+            ip=ip,
+        )
+    except Exception:
+        pass
 
 
 @router.post("/refresh")
@@ -161,7 +208,26 @@ async def me(request: Request) -> dict[str, Any]:
     user = getattr(request.state, "user", None)
     if user is None:
         raise HTTPException(401, "Sign in to continue.")
-    return dict(user)
+    repo = OrganizationRepository(get_metadata_engine())
+    organizations = await repo.organizations_for_user(user["id"])
+    if not organizations:
+        # Self-heal an account that predates organizations or lost a provisioning race.
+        await repo.create_personal_organization(
+            user_id=user["id"], email=user["email"], workspace_id=user["workspace_id"]
+        )
+        organizations = await repo.organizations_for_user(user["id"])
+    return {
+        **dict(user),
+        "organizations": [
+            {
+                "id": org.id,
+                "name": org.name,
+                "workspace_id": org.workspace_id,
+                "is_personal": org.is_personal,
+            }
+            for org in organizations
+        ],
+    }
 
 
 @router.post("/request-link")

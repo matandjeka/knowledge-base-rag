@@ -10,6 +10,7 @@ from sqlalchemy import update
 
 from app.api.dependencies import get_metadata_engine
 from app.core.config import get_settings
+from app.core.rate_limit import rate_limit
 from app.jobs.processing import public_job, step_job, storage
 from app.jobs.repository import JobRepository, jobs
 
@@ -42,7 +43,7 @@ def repository() -> JobRepository:
 def workspace(request: Request) -> str:
     if not get_settings().auth_enabled:
         raise HTTPException(503, "Jobs require authentication.")
-    return str(request.state.user["workspace_id"])
+    return str(request.state.workspace_id)
 
 
 async def dispatch(job_id: str) -> bool:
@@ -73,7 +74,11 @@ async def dispatch(job_id: str) -> bool:
         return False
 
 
-@router.post("/jobs", status_code=202)
+@router.post(
+    "/jobs",
+    status_code=202,
+    dependencies=[rate_limit("job", "rate_limit_job_per_minute")],
+)
 async def create_job(body: JobRequest, request: Request) -> dict[str, Any]:
     owner = workspace(request)
     spec = body.model_dump(mode="json", exclude_none=True, exclude={"id"})

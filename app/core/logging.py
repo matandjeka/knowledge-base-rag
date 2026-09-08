@@ -36,7 +36,10 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging(level: str = "INFO") -> None:
-    """Configure root logging with a structured stdout handler."""
+    """Configure root logging with a structured, PII-redacting stdout handler."""
+    from app.core.redaction import install_redaction
+
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
+    install_redaction(handler)
     logging.basicConfig(level=level, handlers=[handler], force=True)

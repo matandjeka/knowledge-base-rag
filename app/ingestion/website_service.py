@@ -4,6 +4,7 @@ import logging
 from datetime import UTC, datetime
 
 from app.core.exceptions import IngestionError, WebsiteValidationError
+from app.ingestion.injection_scan import scan_documents
 from app.ingestion.pdf import chunk_text
 from app.ingestion.website import WebsiteCrawl, WebsiteCrawler, normalize_url
 from app.models import (
@@ -53,6 +54,7 @@ class WebsiteIngestionService:
         *,
         crawl_same_domain: bool,
         page_limit: int,
+        allowed_domains: list[str] | None = None,
     ) -> WebsiteIngestionResult:
         """Crawl, extract, chunk, and persist one website source."""
         seed_url = normalize_url(url)
@@ -78,7 +80,10 @@ class WebsiteIngestionService:
             )
             await self._storage.save_source(source)
             crawl = await self._crawler.crawl(
-                seed_url, crawl_same_domain=crawl_same_domain, page_limit=page_limit
+                seed_url,
+                crawl_same_domain=crawl_same_domain,
+                page_limit=page_limit,
+                allowed_domains=allowed_domains,
             )
             source = await self._repository.update(
                 workspace_id,
@@ -88,6 +93,12 @@ class WebsiteIngestionService:
             documents = self.build_documents(source, crawl)
             await self._storage.save_documents(workspace_id, source.source_id, documents)
             await self._storage.save_crawl_manifest(workspace_id, source.source_id, crawl.manifest)
+            flags = scan_documents(documents)
+            if flags:
+                logger.warning(
+                    "Ingested content flagged for possible prompt injection",
+                    extra={"workspace_id": workspace_id, "action": "ingestion.flagged"},
+                )
             source = await self._repository.update(
                 workspace_id,
                 source.source_id,
@@ -99,6 +110,7 @@ class WebsiteIngestionService:
                                 "page_count": len(crawl.pages),
                                 "chunk_count": len(documents),
                                 "skipped_count": len(crawl.manifest.failures),
+                                **({"injection_flags": flags} if flags else {}),
                             }
                         },
                         deep=True,

@@ -261,6 +261,11 @@ class AuthService:
                 .values(revoked=True)
             )
 
+    async def delete_unprovisioned_user(self, user_id: str) -> None:
+        """Remove a freshly created account when organization provisioning failed."""
+        async with self.engine.begin() as conn:
+            await conn.execute(delete(users).where(users.c.id == user_id))
+
     async def issue_email_token(self, user_id: str, purpose: str) -> str:
         token = secrets.token_urlsafe(48)
         async with self.engine.begin() as conn:

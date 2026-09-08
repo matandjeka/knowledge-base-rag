@@ -39,6 +39,8 @@ dependencies = [
 [project.scripts]
 rag-evaluate = "app.evaluation.cli:main"
 rag-migrate-persistence = "app.persistence.migration:main"
+rag-audit = "app.audit.cli:main"
+rag-retention = "app.retention.cli:main"
 
 [dependency-groups]
 local = [
