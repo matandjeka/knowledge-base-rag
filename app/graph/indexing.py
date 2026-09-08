@@ -34,6 +34,11 @@ class GraphIndexingService:
         self._max_batch_characters = max_batch_characters
         self._persistence_repository = persistence_repository
 
+    @property
+    def extractor(self) -> GraphExtractor:
+        """Expose the configured extraction boundary to durable batch orchestration."""
+        return self._extractor
+
     async def rebuild(self, workspace_id: str) -> GraphIndexResult:
         """Extract, resolve, stage, validate, and activate one complete workspace graph."""
         sources = [
@@ -50,7 +55,7 @@ class GraphIndexingService:
             raise IndexingError("No persisted documents are available for graph indexing")
 
         extractions = []
-        for batch in self._batches(documents):
+        for batch in self.batches(documents):
             extractions.extend(await self._extractor.extract(batch))
         entities, relationships = resolve_graph(workspace_id, documents, extractions)
         snapshot = GraphSnapshot(
@@ -93,7 +98,7 @@ class GraphIndexingService:
             relationship_count=metadata.relationship_count,
         )
 
-    def _batches(self, documents: Sequence[NormalizedDocument]) -> list[list[NormalizedDocument]]:
+    def batches(self, documents: Sequence[NormalizedDocument]) -> list[list[NormalizedDocument]]:
         batches: list[list[NormalizedDocument]] = []
         current: list[NormalizedDocument] = []
         characters = 0

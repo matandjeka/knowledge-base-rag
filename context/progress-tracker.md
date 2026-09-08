@@ -5,7 +5,16 @@
 
 **Last Completed Implementation Phase:** Phase 16 — Production Persistence
 
-**Next Phase:** Phase 17 — Azure Deployment (planning next; resolve local embedding crash before end-to-end deployment validation)
+**Current Phase:** Phase 18 — Optional Vercel Frontend (in progress). The Vercel architecture was
+approved September 7, 2026 (`context/design/phase18.md`) and implementation covers the frontend,
+hosted-model, auth, and durable-job subsystems. A code review on September 7, 2026 and its
+follow-up fixes (branch `fix/phase18-review`) resolved the broken durable-job tests, tightened
+config/isolation guardrails, rewrote migration `0002` as a self-contained snapshot, and shortened
+the job-step database transaction. It is still not complete: no live Vercel deployment or cloud
+verification has been performed.
+
+**Skipped Phase:** Phase 17 — Azure Deployment, per user instruction on September 7, 2026.
+No Azure deployment implementation or provisioning was performed.
 
 **Exit-Criteria Verification:** Automated local coverage exists through Phase 16. Live model
 quality, full UI ingestion/query reliability, and full-stack production restart recovery remain
@@ -22,33 +31,65 @@ five-page Streamlit interface for chat, source management, retrieval experiments
 inspection, and safe effective settings.
 
 **Build-plan alignment:** Phases 0–16 are implemented with passing automated regression coverage.
-Phase 17 Azure Deployment is next; Phases 17–19 have no completed deployment or hardening milestone.
+Phase 17 Azure Deployment is skipped. Phase 18 (Optional Vercel Frontend) is in progress: the
+backend-hosting question was resolved by targeting two Vercel projects (FastAPI API + Next.js
+frontend) with Vercel Blob, hosted Voyage embeddings/reranking, a new 1,024-dim Pinecone index,
+self-registration auth with per-client workspace isolation, and Vercel Workflow-orchestrated
+durable jobs. Phase 19 remains unstarted.
 Tracker sections are grouped by subsystem, so their section numbers do not map one-to-one to the
 phase numbers in `build-plan.md`. Production mode now requires the complete durable stack while
 the existing local adapters remain available for development, tests, and rollback.
 
-**Verification (rerun September 7, 2026):** `ruff check .` passes; `ruff format --check .`
-reports 123 files already formatted; strict `mypy` passes across 118 source files;
-`pytest -q` reports `212 passed, 1 skipped` in 14.76 seconds. The skipped test is the opt-in
-live OpenAI graph integration test. These checks do not exercise the failing live embedding load
-or establish real-provider retrieval quality.
+**Verification (rerun September 7, 2026, after the Phase 18 review fixes):** `ruff check .`
+passes; `ruff format --check .` reports 141 files already formatted; strict `mypy app` passes
+across 101 source files; `pytest -q` reports **`230 passed, 1 skipped`** in ~27 seconds. The
+skipped test is the opt-in live OpenAI graph integration test. `tests/test_phase18_jobs.py` now
+parametrizes the CSV/PDF durable-job case and exercises the retry/publish path; new tests cover
+the `vercel_blob`-in-production auth guardrail and nested-`workspace_id` rejection. Frontend
+`npm run typecheck` and `node --test` pass. `alembic upgrade --sql` renders migration `0002`
+cleanly with a single head. The API was run locally (`uvicorn app.main:app`, `OMP_NUM_THREADS=1`):
+14/14 route smoke checks pass and a CSV source was ingested and answered with a grounded row
+citation. These checks still do not exercise any live Vercel/Voyage/Blob/Workflow path.
 
 ## Open Validation Work
 
-- [~] Diagnose the local API native crash (exit code 139) observed while loading
-  `BAAI/bge-small-en-v1.5`. Restarting with native thread limits restored `/health` and
-  `/sources?workspace_id=local` (HTTP 200), and the Streamlit health endpoint responded.
-  Successful embedding, ingestion, and query execution after that restart have not been verified.
-- [ ] Re-run PDF, website, and CSV ingestion plus a cited query through the UI after the
-  embedding issue is resolved (build-plan Phases 2–5 and 15 runtime acceptance).
+- [x] Local API native crash (exit code 139) while loading `BAAI/bge-small-en-v1.5`: resolved by
+  running with `OMP_NUM_THREADS=1`. On September 7, 2026 the API booted clean, loaded the
+  SentenceTransformer, ingested a CSV source end to end (status reached `ready` after a slow but
+  successful CPU embed/FAISS build on this x86_64 Mac), and answered a grounded query with a
+  correct `[S1]` CSV-row citation. 14/14 route smoke checks passed.
+- [ ] Re-run PDF and website ingestion plus a cited query through the Streamlit UI (build-plan
+  Phases 2–4 and 15 runtime acceptance). CSV ingestion + cited retrieval verified via the API.
 - [ ] Verify model-backed quality comparisons, including re-ranking improvement over fused-only
   results (Phase 10). Deterministic fixtures and model doubles validate contracts and metrics;
   they do not establish live cross-encoder quality.
 - [ ] Verify Phase 16 restart recovery using PostgreSQL, Azure Blob, Pinecone, and Neo4j together,
   including indexed-data retrieval after restart. Current persistence tests use SQLite,
   in-memory coordination, and simulated Blob storage; cloud provisioning is Phase 17 work.
-- [ ] Create Docker/deployment artifacts and configure Azure resources, Key Vault, monitoring,
+- [-] Deferred with skipped Phase 17: create Docker/deployment artifacts and configure Azure resources, Key Vault, monitoring,
   and an end-to-end deployment smoke test (Phase 17). `docker/` and `scripts/` contain only placeholders.
+- [x] Fix the broken `tests/test_phase18_jobs.py` cases (CSV/PDF parametrize; graph-test source
+  lifecycle), restoring green `ruff check` and `pytest`. Done on `fix/phase18-review`.
+- [x] Phase 18 review follow-ups: require `AUTH_ENABLED` for `vercel_blob` in production; scan the
+  whole JSON body for `workspace_id` in `authorize`; restore optional (uncapped) pagination on
+  `GET /sources/{id}/documents`; rewrite migration `0002` as explicit `op.create_table`; bound the
+  authenticated evaluation-report listing; shorten the `step_job` transaction so no row lock is
+  held across provider calls; drop the `app/main.py` E402 import workaround.
+- [x] Runtime fixes found while running the app: `GET /jobs`, `/jobs/{id}`, resume, and cancel
+  returned HTTP 500 (constructing the metadata engine before the auth check) — now a clean 503
+  when auth is disabled; `/internal/*` returned 500 when auth is disabled — the workflow-secret
+  check now runs regardless of `AUTH_ENABLED` (clean 401); `GET /auth/me` returned 500 without a
+  session — now 401.
+- [ ] Provision the Phase 18 Vercel stack (two projects, private Blob, PostgreSQL `rag` schema,
+  new 1,024-dim Voyage Pinecone index, Neo4j, Voyage key, mail webhook) and run the
+  `docs/phase18-deployment.md` acceptance checklist: client isolation, session/refresh rotation,
+  direct Blob uploads >4.5 MB, retry idempotency, interrupted-job recovery, and retrieval after
+  restart/redeploy.
+- [ ] Run live Voyage embedding/reranking quality comparisons and calibrate similarity thresholds
+  (the BGE 0.70 cutoff is not a validated Voyage value); reindex against the new index.
+- [ ] Verify Vercel Workflow dispatch, concurrent job-step delivery against PostgreSQL (the step
+  fence now uses two short transactions rather than a lock held across provider calls), and
+  transactional mail delivery in a configured preview environment (offline tests use SQLite doubles).
 
 The phase table below tracks implementation completion. Subsystem exit-criteria summaries
 describe automated acceptance coverage, subject to the live-validation gaps above.
@@ -74,8 +115,8 @@ describe automated acceptance coverage, subject to the live-validation gaps abov
 | Phase 14 — Evaluation Framework | [x] Complete |
 | Phase 15 — Streamlit Application | [x] Complete |
 | Phase 16 — Production Persistence | [x] Implemented; live stack restart verification pending |
-| Phase 17 — Azure Deployment | [ ] Not started |
-| Phase 18 — Optional Vercel Frontend | [ ] Not started |
+| Phase 17 — Azure Deployment | [-] Skipped by user; not implemented |
+| Phase 18 — Optional Vercel Frontend | [~] In progress — code across frontend/auth/hosted-models/jobs; offline suite green after review fixes; not deployed or cloud-verified |
 | Phase 19 — Enterprise Hardening | [ ] Not started |
 
 ## Status Legend
@@ -83,6 +124,7 @@ describe automated acceptance coverage, subject to the live-validation gaps abov
 - [~] In progress
 - [x] Complete
 - [!] Blocked
+- [-] Skipped / deferred by user
 
 ## 1. Foundation
 - [x] Create Git repository
@@ -379,15 +421,24 @@ service-level smoke tests belong to Phase 17.
 - [ ] User feedback capture
 
 ## 19. Security
-- [ ] JWT/OIDC integration
-- [~] Workspace/tenant model (workspace-scoped records implemented; authenticated tenant binding deferred)
-- [ ] Source authorization
+- [~] JWT/OIDC integration (Phase 18: self-registration, Argon2 password hashing, JWT access
+  tokens, and one-use rotating refresh tokens implemented in `app/auth/`; gated behind
+  `AUTH_ENABLED`; no external OIDC provider; not verified against live PostgreSQL)
+- [~] Workspace/tenant model (workspace-scoped records implemented; Phase 18 adds one private
+  workspace per registered client with `app/auth/authorization.py` ownership checks; authenticated
+  tenant binding still off by default)
+- [~] Source authorization (Phase 18 request-time workspace-ownership enforcement for source
+  list/query/inspect/download; security-label authorization deferred)
 - [~] Retrieval metadata filters (workspace/source filtering implemented; security-label authorization deferred)
 - [x] File validation
 - [x] Crawl allowlist
-- [~] Secret management (environment-backed references implemented; managed vault deferred)
+- [~] Secret management (environment-backed references implemented; Phase 18 adds `SecretStr`
+  config for Blob, JWT, workflow, Voyage, and mail-webhook secrets with fail-closed validation;
+  managed vault deferred)
 - [x] SQL read-only enforcement
 - [ ] Prompt injection mitigation
+- [x] Email verification / password recovery (single-use, one-hour tokens via transactional mail
+  webhook; required before public registration is allowed)
 
 ## 20. Local Deployment
 - [ ] Dockerfile
@@ -397,6 +448,9 @@ service-level smoke tests belong to Phase 17.
 - [x] Health checks
 
 ## 21. Azure Deployment
+
+**Status:** [-] Phase 17 skipped by user on September 7, 2026. Tasks remain unimplemented.
+
 - [ ] Azure subscription/resource group
 - [ ] Azure Container Apps or App Service
 - [ ] Blob Storage
@@ -406,12 +460,40 @@ service-level smoke tests belong to Phase 17.
 - [ ] Logging/monitoring
 - [ ] Deployment workflow
 
-## 22. Vercel Frontend — Optional
-- [ ] Next.js UI
-- [ ] API client
-- [ ] Authentication
-- [ ] Deploy to Vercel
-- [ ] Connect to Azure backend
+## 22. Vercel Frontend — Optional (Build-plan Phase 18)
+
+**Status:** [~] In progress. Architecture approved September 7, 2026 (`context/design/phase18.md`);
+runbook in `docs/phase18-deployment.md`. Code review + fixes on branch `fix/phase18-review`
+(uncommitted); prior Phase 18 implementation is uncommitted on `main`.
+
+- [x] Approved architecture and deployment runbook
+- [x] Next.js UI (`frontend/`, Next 16 / React 19; `components/workspace.tsx` preserves Chat,
+  Sources, Retrieval Lab, Evaluation, Settings, and inspectable citations)
+- [x] API client and same-origin proxy (`frontend/lib/`, `frontend/app/api/backend/[...path]`)
+  forwarding user JWTs; direct Blob upload/download routes bypassing the 4.5 MB function limit
+- [x] Authentication (`app/auth/`: register/login/refresh/logout/me/verify/reset; origin checks;
+  refresh cookie scoped to `/api/auth`)
+- [x] Per-client workspace isolation and source-ownership authorization (`app/auth/authorization.py`)
+- [x] Private Vercel Blob adapter (`app/storage/vercel_blob.py`) for source originals, normalized
+  documents, manifests, and BM25 artifacts; `SOURCE_STORAGE_BACKEND` / `LEXICAL_STORE_BACKEND`
+  gain a `vercel_blob` option
+- [x] Hosted models (`app/hosted/voyage.py`: `voyage-4` embeddings + `rerank-2.5`); new
+  1,024-dim cosine Pinecone index; BGE index retained for rollback
+- [x] Durable jobs (`app/jobs/`: monotonic step-fence checkpoints with two short transactions per
+  step, CSV/PDF/website processing, graph extraction, internal step routes) driven by Vercel
+  Workflow (`frontend/workflows/ingest.ts`, `frontend/app/api/workflows/start`)
+- [x] Serverless config profile and fail-closed validation (`SERVERLESS`, `AUTH_ENABLED`,
+  `EMBEDDING_DIMENSION=1024`, Voyage/Blob/workflow/mail secrets) in `app/core/config.py`;
+  `vercel_blob` in production also requires `AUTH_ENABLED`
+- [x] Split dependency groups: runtime deps exclude FAISS/torch/transformers/streamlit (moved to
+  the `local` group); `requirements.txt` exported for Vercel; `vercel.json` / `[tool.vercel]`
+- [x] Migration `20260907_0002` is an explicit self-contained `op.create_table` snapshot
+- [x] Offline test coverage green: `test_phase18_auth.py` (incl. nested-`workspace_id` rejection),
+  `test_phase18_hosted.py`, and `test_phase18_jobs.py` (CSV/PDF parametrized retry/publish path)
+- [ ] Deploy to Vercel (two projects) and run the acceptance checklist
+- [ ] Live provider verification: Voyage quality/threshold calibration, Workflow dispatch,
+  concurrent job-step delivery on PostgreSQL, private Blob transfer, mail delivery
+- [ ] Connect to hosted backend end-to-end (build plan assumed Azure; resolved as Vercel-hosted API)
 
 ## 23. Portfolio Readiness
 - [x] Architecture diagram
@@ -454,4 +536,10 @@ chat, retrieval diagnostics, and immutable evaluation-report visualization.
 ### Milestone D — Production Deployment
 Azure persistence and deployment, optionally Vercel frontend.
 
-Status: [ ]
+Status: [~]
+
+Phase 16 durable persistence is implemented (PostgreSQL + Blob + Pinecone + Neo4j) with local
+regression coverage. Phase 17 Azure deployment is skipped by user instruction. Phase 18 pivots
+deployment to Vercel (Next.js frontend + FastAPI API, private Vercel Blob, hosted Voyage models,
+self-registration auth, Workflow-orchestrated durable jobs); the code exists but is uncommitted,
+has failing durable-job tests, and has not been deployed or verified against live cloud services.

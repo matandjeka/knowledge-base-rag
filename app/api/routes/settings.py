@@ -31,8 +31,8 @@ async def effective_settings() -> EffectiveSettings:
         ),
         production_persistence_ready=(
             settings.metadata_store_backend == "postgresql"
-            and settings.source_storage_backend == "azure_blob"
-            and settings.lexical_store_backend == "azure_blob"
+            and settings.source_storage_backend in {"azure_blob", "vercel_blob"}
+            and settings.lexical_store_backend in {"azure_blob", "vercel_blob"}
             and settings.vector_store_backend == "pinecone"
             and settings.graph_store_backend == "neo4j"
         ),

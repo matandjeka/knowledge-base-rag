@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Protocol
 from uuid import UUID, uuid4
 
-import faiss
 import numpy as np
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
@@ -247,6 +246,8 @@ class FaissVectorStore:
             representation_directory.mkdir()
             index_path = representation_directory / "index.faiss"
             documents_path = representation_directory / "documents.json"
+            import faiss
+
             index = faiss.IndexFlatIP(dimension)
             index.add(payload.vectors)
             faiss.write_index(index, str(index_path))
@@ -315,6 +316,8 @@ class FaissVectorStore:
             raise IndexingError("Vector document-mapping checksum validation failed")
         try:
             documents = _DOCUMENTS_ADAPTER.validate_json(documents_payload)
+            import faiss
+
             index = faiss.read_index(str(index_path))
         except (ValueError, RuntimeError) as error:
             raise IndexingError("The current vector-index generation is invalid") from error

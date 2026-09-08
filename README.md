@@ -251,3 +251,26 @@ PDF page, website URL, or CSV row.
 
 The normal test suite uses offline extractor doubles. A live extraction smoke test is available
 only when explicitly enabled with `RUN_LIVE_OPENAI_GRAPH_TEST=1` and valid graph settings.
+
+## Phase 18 — Next.js and Vercel
+
+The Next.js client lives in `frontend/`. It supports client registration, private workspaces,
+source ingestion, cited chat, retrieval experiments, evaluation reports, and settings.
+
+```sh
+npm ci --prefix frontend
+npm run dev --prefix frontend
+```
+
+Unlike the local Streamlit interface, this client requires the authenticated API configuration.
+Deployment uses PostgreSQL, private Vercel Blob, Pinecone, Neo4j, Voyage models, and Vercel Workflow.
+See [the deployment runbook](docs/phase18-deployment.md) for configuration, migrations,
+index migration, verification, and rollback. Azure deployment (Phase 17) remains skipped.
+
+`uv sync` retains local ML dependencies for development. The production dependency set
+(`uv sync --no-dev`) excludes FAISS, Sentence Transformers, PyTorch, and Streamlit.
+`requirements.txt` is the pinned production export of `uv.lock`.
+
+Phase 18 deployment acceptance remains pending until service credentials, email delivery,
+and live preview smoke tests are complete. Run `uv run python scripts/check_phase18_config.py`
+to list missing configuration names without displaying secrets.

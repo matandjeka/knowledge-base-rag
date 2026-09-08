@@ -85,7 +85,7 @@ class PdfIngestionService:
             )
             await self._storage.save_source(source)
 
-            documents = self._build_documents(source, parsed.pages, locator)
+            documents = self.build_documents(source, parsed.pages, locator)
             await self._storage.save_documents(workspace_id, source.source_id, documents)
             source = await self._repository.update(
                 workspace_id,
@@ -136,7 +136,7 @@ class PdfIngestionService:
             chunk_count=len(documents),
         )
 
-    def _build_documents(
+    def build_documents(
         self, source: Source, pages: tuple[ParsedPdfPage, ...], locator: str
     ) -> list[NormalizedDocument]:
         documents: list[NormalizedDocument] = []
