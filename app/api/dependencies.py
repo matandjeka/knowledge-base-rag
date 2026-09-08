@@ -2,7 +2,9 @@
 
 from functools import lru_cache
 
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.core.config import get_settings
 from app.core.exceptions import GraphConfigurationError
@@ -20,6 +22,7 @@ from app.graph.neo4j_store import Neo4jGraphStore
 from app.graph.openai_extractor import OpenAIGraphExtractor
 from app.graph.retrieval import GraphRetriever
 from app.graph.store import GraphStore, LocalGraphStore
+from app.hosted.voyage import VoyageClient, VoyageEmbeddingService, VoyageReranker
 from app.ingestion.csv import CsvConnector
 from app.ingestion.csv_service import CsvIngestionService
 from app.ingestion.pdf import PdfConnector
@@ -32,7 +35,7 @@ from app.repositories import InMemorySourceRepository, SourceRepository
 from app.reranking.service import HuggingFaceCrossEncoderReranker, RerankingService
 from app.retrieval.base import Retriever
 from app.retrieval.blob_lexical import BlobLexicalStore
-from app.retrieval.embedding import HuggingFaceEmbeddingService
+from app.retrieval.embedding import EmbeddingService, HuggingFaceEmbeddingService
 from app.retrieval.fusion import FusionRetriever
 from app.retrieval.indexing import VectorIndexingService
 from app.retrieval.lexical import LexicalRetriever, LexicalStore, LocalLexicalStore
@@ -43,6 +46,7 @@ from app.retrieval.vector import VectorRetriever
 from app.retrieval.vector_store import FaissVectorStore
 from app.routing import RuleBasedQueryRouter
 from app.storage import AzureBlobSourceStorage, LocalSourceStorage, SourceStorage
+from app.storage.vercel_blob import VercelBlobLexicalStore, VercelBlobSourceStorage
 
 
 async def close_application_dependencies() -> None:
@@ -53,6 +57,12 @@ async def close_application_dependencies() -> None:
         graph_store = get_graph_store()
         if isinstance(graph_store, Neo4jGraphStore):
             await graph_store.close()
+    if settings.source_storage_backend == "vercel_blob":
+        vercel_storage = get_source_storage()
+        if isinstance(vercel_storage, VercelBlobSourceStorage):
+            await vercel_storage.close()
+            get_source_storage.cache_clear()
+            get_lexical_store.cache_clear()
     if settings.source_storage_backend == "azure_blob":
         source_storage = get_source_storage()
         if isinstance(source_storage, AzureBlobSourceStorage):
@@ -67,6 +77,12 @@ def get_metadata_engine() -> AsyncEngine:
     settings = get_settings()
     if settings.metadata_database_url is None:
         raise RuntimeError("METADATA_DATABASE_URL is required")
+    if settings.serverless:
+        return create_async_engine(
+            settings.metadata_database_url.get_secret_value(),
+            poolclass=NullPool,
+            connect_args={"server_settings": {"search_path": settings.metadata_database_schema}},
+        )
     return create_async_engine(
         settings.metadata_database_url.get_secret_value(),
         pool_size=settings.metadata_pool_size,
@@ -96,6 +112,9 @@ def get_persistence_repository() -> PersistenceRepository:
 def get_source_storage() -> SourceStorage:
     """Return configured source artifact storage."""
     settings = get_settings()
+    if settings.source_storage_backend == "vercel_blob":
+        assert settings.blob_read_write_token is not None
+        return VercelBlobSourceStorage(settings.blob_read_write_token.get_secret_value())
     if settings.source_storage_backend == "local":
         return LocalSourceStorage(settings.data_dir)
     if settings.azure_blob_container is None:
@@ -111,10 +130,26 @@ def get_source_storage() -> SourceStorage:
     )
 
 
+def require_blob_storage() -> VercelBlobSourceStorage:
+    """Return the private Vercel Blob store, or fail closed when it is not configured."""
+    value = get_source_storage()
+    if not isinstance(value, VercelBlobSourceStorage):
+        raise HTTPException(503, "This operation requires private Vercel Blob storage.")
+    return value
+
+
 @lru_cache
-def get_embedding_service() -> HuggingFaceEmbeddingService:
+def get_embedding_service() -> EmbeddingService:
     """Return the cached local Hugging Face embedding adapter."""
     settings = get_settings()
+    if settings.embedding_provider == "voyage":
+        assert settings.voyage_api_key is not None
+        return VoyageEmbeddingService(
+            VoyageClient(settings.voyage_api_key.get_secret_value()),
+            model_name=settings.voyage_embedding_model,
+            dimension=settings.embedding_dimension,
+            batch_size=settings.embedding_batch_size,
+        )
     return HuggingFaceEmbeddingService(
         model_name=settings.embedding_model_name,
         dimension=settings.embedding_dimension,
@@ -179,6 +214,14 @@ def get_graph_store() -> GraphStore:
 def get_lexical_store() -> LexicalStore:
     """Return the configured immutable BM25 store."""
     settings = get_settings()
+    if settings.lexical_store_backend == "vercel_blob":
+        return VercelBlobLexicalStore(
+            get_source_storage(),
+            get_persistence_repository(),
+            k1=settings.bm25_k1,
+            b=settings.bm25_b,
+            max_cached_generations=settings.lexical_cache_max_generations,
+        )
     if settings.lexical_store_backend == "azure_blob":
         storage = get_source_storage()
         if not isinstance(storage, AzureBlobSourceStorage):
@@ -226,6 +269,15 @@ def get_graph_indexing_service() -> GraphIndexingService:
 def get_reranking_service() -> RerankingService:
     """Return the lazy local cross-encoder re-ranking service."""
     settings = get_settings()
+    if settings.reranker_provider == "voyage":
+        assert settings.voyage_api_key is not None
+        return RerankingService(
+            VoyageReranker(
+                VoyageClient(settings.voyage_api_key.get_secret_value()),
+                settings.voyage_reranker_model,
+            ),
+            max_per_source=settings.reranking_max_per_source,
+        )
     return RerankingService(
         HuggingFaceCrossEncoderReranker(
             model_name=settings.reranker_model_name,

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "functions": {
+    "app/api/backend/[...path]/route.ts": {"maxDuration": 300},
+    "app/.well-known/workflow/v1/step/route.*": {"maxDuration": 300}
+  }
+}

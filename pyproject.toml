@@ -14,8 +14,6 @@ dependencies = [
     "azure-storage-blob>=12.26,<13",
     "cryptography>=44,<46",
     "fastapi>=0.116,<1",
-    "faiss-cpu>=1.10,<1.11; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-    "faiss-cpu>=1.12,<2; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "httpx>=0.28,<1",
     "numpy>=1.26,<2",
     "neo4j>=5.28,<7",
@@ -29,12 +27,13 @@ dependencies = [
     "pydantic-settings>=2.10,<3",
     "pinecone>=9,<10",
     "python-multipart>=0.0.20,<1",
-    "sentence-transformers>=3.4,<4",
-    "streamlit>=1.48,<2",
-    "torch>=2.2,<2.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
-    "transformers>=4.41,<4.50; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "trafilatura>=2.0,<3",
     "uvicorn[standard]>=0.35,<1",
+    "cbor2>=5.6,<6",
+    "argon2-cffi-bindings>=21.2,<26",
+    "pyjwt>=2.10,<3",
+    "argon2-cffi>=25,<26",
+    "vercel>=0.5,<1",
 ]
 
 [project.scripts]
@@ -42,7 +41,16 @@ rag-evaluate = "app.evaluation.cli:main"
 rag-migrate-persistence = "app.persistence.migration:main"
 
 [dependency-groups]
+local = [
+    "faiss-cpu>=1.10,<1.11; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "faiss-cpu>=1.12,<2; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+    "sentence-transformers>=3.4,<4",
+    "streamlit>=1.48,<2",
+    "torch>=2.2,<2.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "transformers>=4.41,<4.50; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+]
 dev = [
+    {include-group = "local"},
     "mypy>=1.17,<2",
     "pytest>=8.4,<9",
     "pytest-asyncio>=1.1,<2",
@@ -93,3 +101,6 @@ module = [
 ]
 ignore_missing_imports = true
 follow_imports = "skip"
+
+[tool.vercel]
+entrypoint = "app.main:app"

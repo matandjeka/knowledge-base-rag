@@ -58,7 +58,7 @@ class CsvIngestionService:
     ) -> CsvIngestionResult:
         """Validate, normalize, and persist one CSV upload."""
         parsed = await asyncio.to_thread(self._connector.parse, filename, content_type, data)
-        selection = self._validate_selection(parsed, text_columns, metadata_columns, row_id_column)
+        selection = self.validate_selection(parsed, text_columns, metadata_columns, row_id_column)
         source = Source(
             workspace_id=workspace_id,
             name=parsed.filename,
@@ -90,7 +90,7 @@ class CsvIngestionService:
                 workspace_id, source.source_id, SourceStatus.INDEXING
             )
             await self._storage.save_source(source)
-            documents, skipped_count = self._build_documents(source, parsed, selection, locator)
+            documents, skipped_count = self.build_documents(source, parsed, selection, locator)
             if not documents:
                 raise CsvValidationError("No row contains a value in the selected text columns")
             await self._storage.save_documents(workspace_id, source.source_id, documents)
@@ -149,7 +149,7 @@ class CsvIngestionService:
             skipped_count=skipped_count,
         )
 
-    def _validate_selection(
+    def validate_selection(
         self,
         parsed: ParsedCsv,
         text_columns: list[str],
@@ -185,7 +185,7 @@ class CsvIngestionService:
                 )
         return _CsvSelection(tuple(text_columns), tuple(metadata_columns), row_id_column)
 
-    def _build_documents(
+    def build_documents(
         self,
         source: Source,
         parsed: ParsedCsv,

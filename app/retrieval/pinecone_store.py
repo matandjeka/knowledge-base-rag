@@ -87,6 +87,53 @@ class PineconeVectorStore:
         self._compatibility_checked = False
         self._compatibility_lock = asyncio.Lock()
 
+    async def upsert_job_batch(
+        self,
+        workspace_id: str,
+        generation_id: UUID,
+        kind: VectorIndexKind,
+        documents: Sequence[NormalizedDocument],
+        vectors: NDArray[np.float32],
+    ) -> None:
+        """Prepare and verify a bounded, idempotent job batch without publishing it."""
+        self._validate_workspace(workspace_id)
+        await self._ensure_compatible(self._dimension)
+        self._validate_payloads({kind: VectorIndexPayload(documents, vectors)}, self._dimension)
+        records = [
+            {
+                "id": f"{generation_id}:{kind.value}:{doc.document_id}",
+                "values": vector.tolist(),
+                "metadata": {
+                    "record_type": _DOCUMENT_KIND,
+                    "generation_id": str(generation_id),
+                    "index_kind": kind.value,
+                    "source_id": str(doc.source_id),
+                    "document_json": doc.model_dump_json(),
+                },
+            }
+            for doc, vector in zip(documents, vectors, strict=True)
+        ]
+        async with self._index_factory() as index:
+            await index.upsert(vectors=records, namespace=workspace_id)
+            ids = [record["id"] for record in records]
+            for attempt in range(self._consistency_retries):
+                response = await index.fetch(ids=ids, namespace=workspace_id)
+                found = self._field(response, "vectors", {})
+                if all(identifier in found for identifier in ids):
+                    return
+                await asyncio.sleep(self._consistency_delay_seconds * (attempt + 1))
+        raise IndexingError("Pinecone batch was not visible before the verification deadline")
+
+    async def finish_job_generation(
+        self, workspace_id: str, generation: VectorGenerationMetadata
+    ) -> None:
+        """Write generation metadata only after every batch has been acknowledged and verified."""
+        async with self._index_factory() as index:
+            await index.upsert(
+                vectors=[self._generation_record(generation)], namespace=workspace_id
+            )
+            await self._wait_for_generation(index, workspace_id, generation.generation_id)
+
     async def rebuild(
         self,
         workspace_id: str,

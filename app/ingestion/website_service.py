@@ -85,7 +85,7 @@ class WebsiteIngestionService:
                 source.source_id,
                 SourceUpdate(name=crawl.pages[0].title or seed_url),
             )
-            documents = self._build_documents(source, crawl)
+            documents = self.build_documents(source, crawl)
             await self._storage.save_documents(workspace_id, source.source_id, documents)
             await self._storage.save_crawl_manifest(workspace_id, source.source_id, crawl.manifest)
             source = await self._repository.update(
@@ -143,7 +143,7 @@ class WebsiteIngestionService:
             skipped_count=len(crawl.manifest.failures),
         )
 
-    def _build_documents(self, source: Source, crawl: WebsiteCrawl) -> list[NormalizedDocument]:
+    def build_documents(self, source: Source, crawl: WebsiteCrawl) -> list[NormalizedDocument]:
         documents: list[NormalizedDocument] = []
         chunk_index = 0
         for crawl_index, page in enumerate(crawl.pages):

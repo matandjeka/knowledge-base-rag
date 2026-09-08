@@ -171,3 +171,24 @@ Last updated: September 6, 2026
 keep routing-only time within the routing expander. Citation, evidence, and routing expanders follow
 the session diagnostic-expansion preference consistently. Hide unavailable retrieval modes and
 disable invalid source-specific actions before submission.
+
+### Next.js Workspace and Authentication
+
+Files: `frontend/components/workspace.tsx`, `frontend/app/globals.css`
+Last updated: September 7, 2026
+
+| Property | Token or class |
+| --- | --- |
+| Background | `--canvas`, `--surface`, `--sidebar` from existing UI tokens |
+| Border | `--border` for controls; `--border-soft` for cards |
+| Radius | `--radius` (12px) cards; 8px buttons and inputs |
+| Text | `--text`, `--secondary`, `--muted`; system UI font stack |
+| Spacing | 24px card padding; 16px form gaps; 36px desktop page padding |
+| Interaction | Primary `--accent`; visible 2px keyboard focus; disabled action states |
+| Citations | `--citation`, `--citation-border`; expandable evidence with stable anchors |
+| Shadow | Subtle composer shadow only |
+
+Sidebar navigation uses icons with text and an explicit active state. Source types use the same
+icons throughout uploads, tables, and selection controls. Empty, loading, error, and retry states
+remain visible. Private originals are opened through short-lived, source-scoped download URLs.
+The existing Streamlit interface retains its native styling for local development.

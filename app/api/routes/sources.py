@@ -218,11 +218,19 @@ async def list_source_documents(
     workspace_id: WorkspaceQuery,
     repository: Annotated[SourceRepository, Depends(get_source_repository)],
     storage: Annotated[SourceStorage, Depends(get_source_storage)],
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int | None, Query(ge=1, le=1000)] = None,
 ) -> list[NormalizedDocument]:
-    """Return persisted chunks and page locators for an accessible source."""
+    """Return persisted chunks and page locators for an accessible source.
+
+    ``limit`` is optional: when omitted the full document set is returned, preserving the
+    original contract for callers such as the Streamlit source inspector.
+    """
     try:
         await repository.get(workspace_id, source_id)
-        return list(await storage.load_documents(workspace_id, source_id))
+        documents = list(await storage.load_documents(workspace_id, source_id))
+        end = None if limit is None else offset + limit
+        return documents[offset:end]
     except (SourceNotFoundError, FileNotFoundError) as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Source not found"

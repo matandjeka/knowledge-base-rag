@@ -46,6 +46,41 @@ def test_production_rejects_process_local_persistence_defaults() -> None:
         Settings(_env_file=None, app_env="production")
 
 
+def _vercel_blob_production_settings(**overrides: object) -> Settings:
+    base: dict[str, object] = dict(
+        app_env="production",
+        metadata_store_backend="postgresql",
+        metadata_database_url="postgresql+asyncpg://user:secret@db.example/rag",
+        source_storage_backend="vercel_blob",
+        lexical_store_backend="vercel_blob",
+        blob_read_write_token="blob-token",
+        vector_store_backend="pinecone",
+        pinecone_api_key="secret",
+        pinecone_index_name="rag",
+        pinecone_index_host="rag.example.pinecone.io",
+        graph_store_backend="neo4j",
+        neo4j_uri="neo4j+s://graph.example.com",
+        neo4j_username="neo4j",
+        neo4j_password="secret",
+    )
+    base.update(overrides)
+    return Settings(_env_file=None, **base)  # type: ignore[arg-type]
+
+
+def test_production_vercel_blob_requires_authentication() -> None:
+    with pytest.raises(ValidationError, match="AUTH_ENABLED"):
+        _vercel_blob_production_settings()
+
+
+def test_production_vercel_blob_with_authentication_is_accepted() -> None:
+    settings = _vercel_blob_production_settings(
+        auth_enabled=True,
+        jwt_secret="a-testing-secret-value-of-at-least-32-chars",
+    )
+
+    assert settings.source_storage_backend == "vercel_blob"
+
+
 def test_production_accepts_complete_durable_persistence_configuration() -> None:
     settings = Settings(
         _env_file=None,

@@ -1,5 +1,6 @@
 """Environment-driven application configuration."""
 
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -13,6 +14,26 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    auth_enabled: bool = False
+    auth_require_verification: bool = True
+    jwt_secret: SecretStr | None = None
+    jwt_issuer: str = "knowledge-fusion"
+    auth_allowed_origins: list[str] = ["http://localhost:3000"]
+    frontend_url: str = "http://localhost:3000"
+    auth_email_webhook_url: str | None = None
+    auth_email_webhook_secret: SecretStr | None = None
+    workflow_secret: SecretStr | None = None
+    workflow_dispatch_url: str | None = None
+    workflow_bypass_secret: SecretStr | None = None
+    blob_read_write_token: SecretStr | None = None
+    embedding_provider: Literal["huggingface", "voyage"] = "huggingface"
+    reranker_provider: Literal["huggingface", "voyage"] = "huggingface"
+    voyage_api_key: SecretStr | None = None
+    voyage_embedding_model: str = "voyage-4"
+    voyage_reranker_model: str = "rerank-2.5"
+    serverless: bool = Field(default_factory=lambda: os.environ.get("VERCEL") == "1")
+    job_max_documents: int = Field(default=10000, ge=1, le=100000)
+
     app_name: str = "Enterprise Knowledge Fusion RAG"
     app_env: Literal["development", "test", "production"] = "development"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
@@ -22,8 +43,8 @@ class Settings(BaseSettings):
     data_dir: Path = Path("data")
     evaluation_reports_dir: Path = Path("data/evaluations")
     metadata_store_backend: Literal["memory", "postgresql"] = "memory"
-    source_storage_backend: Literal["local", "azure_blob"] = "local"
-    lexical_store_backend: Literal["local", "azure_blob"] = "local"
+    source_storage_backend: Literal["local", "azure_blob", "vercel_blob"] = "local"
+    lexical_store_backend: Literal["local", "azure_blob", "vercel_blob"] = "local"
     graph_store_backend: Literal["local", "neo4j"] = "local"
     metadata_database_url: SecretStr | None = None
     metadata_database_schema: str = Field(
@@ -125,6 +146,51 @@ class Settings(BaseSettings):
             <= 0
         ):
             raise ValueError("At least one fusion retriever weight must be positive")
+        if self.auth_enabled:
+            if self.jwt_secret is None or len(self.jwt_secret.get_secret_value()) < 32:
+                raise ValueError("JWT_SECRET must contain at least 32 characters")
+            if self.metadata_store_backend != "postgresql":
+                raise ValueError("Authentication requires PostgreSQL")
+        if (
+            self.embedding_provider == "voyage" or self.reranker_provider == "voyage"
+        ) and self.voyage_api_key is None:
+            raise ValueError("VOYAGE_API_KEY is required")
+        if self.embedding_provider == "voyage" and self.embedding_dimension not in {
+            256,
+            512,
+            1024,
+            2048,
+        }:
+            raise ValueError("Voyage requires a supported embedding dimension and a new index")
+        if "vercel_blob" in {self.source_storage_backend, self.lexical_store_backend}:
+            if self.blob_read_write_token is None:
+                raise ValueError("BLOB_READ_WRITE_TOKEN is required")
+            if self.source_storage_backend != self.lexical_store_backend:
+                raise ValueError("Vercel source and lexical storage must be enabled together")
+            if self.app_env == "production" and not self.auth_enabled:
+                raise ValueError(
+                    "Private Vercel Blob storage in production requires AUTH_ENABLED so client "
+                    "workspaces are isolated"
+                )
+        if self.serverless:
+            if self.app_env != "production":
+                raise ValueError("Vercel deployments require APP_ENV=production")
+            if self.app_env == "production" and (
+                not self.auth_require_verification
+                or not self.auth_email_webhook_url
+                or self.auth_email_webhook_secret is None
+            ):
+                raise ValueError(
+                    "Public registration requires configured email verification and recovery"
+                )
+            if (
+                not self.auth_enabled
+                or self.embedding_provider != "voyage"
+                or self.reranker_provider != "voyage"
+            ):
+                raise ValueError("Serverless requires authentication and hosted models")
+            if self.workflow_secret is None or len(self.workflow_secret.get_secret_value()) < 32:
+                raise ValueError("WORKFLOW_SECRET must contain at least 32 characters")
         required: list[str] = []
         if self.metadata_store_backend == "postgresql" and self.metadata_database_url is None:
             required.append("METADATA_DATABASE_URL")
@@ -156,7 +222,11 @@ class Settings(BaseSettings):
                 "VECTOR_STORE_BACKEND": (self.vector_store_backend, "pinecone"),
                 "GRAPH_STORE_BACKEND": (self.graph_store_backend, "neo4j"),
             }
-            invalid = [name for name, (actual, wanted) in expected.items() if actual != wanted]
+            invalid = [
+                name
+                for name, (actual, wanted) in expected.items()
+                if actual != wanted and not (wanted == "azure_blob" and actual == "vercel_blob")
+            ]
             if invalid:
                 raise ValueError(
                     "Production requires durable persistence backends: " + ", ".join(invalid)

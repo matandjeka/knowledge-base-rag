@@ -6,6 +6,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.schema import CreateSchema
 
 from app.core.config import get_settings
 from app.persistence.metadata import metadata
@@ -49,6 +50,10 @@ async def run_async_migrations() -> None:
         poolclass=pool.NullPool,
         connect_args={"server_settings": {"search_path": settings.metadata_database_schema}},
     )
+    async with engine.begin() as connection:
+        await connection.execute(
+            CreateSchema(settings.metadata_database_schema, if_not_exists=True)
+        )
     async with engine.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await engine.dispose()
