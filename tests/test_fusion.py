@@ -445,7 +445,7 @@ async def test_query_endpoint_accepts_fusion_contract_and_rejects_invalid_option
     captured: list[QueryRequest] = []
 
     class StubQueryService:
-        async def query(self, request: QueryRequest) -> object:
+        async def query(self, request: QueryRequest, **_kwargs: object) -> object:
             captured.append(request)
             from app.models import QueryResponse
 

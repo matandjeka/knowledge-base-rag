@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     voyage_reranker_model: str = "rerank-2.5"
     serverless: bool = Field(default_factory=lambda: os.environ.get("VERCEL") == "1")
     job_max_documents: int = Field(default=10000, ge=1, le=100000)
+    rate_limit_enabled: bool = True
+    rate_limit_query_per_minute: int = Field(default=30, ge=1, le=10000)
+    rate_limit_ingest_per_minute: int = Field(default=10, ge=1, le=10000)
+    rate_limit_job_per_minute: int = Field(default=20, ge=1, le=10000)
 
     app_name: str = "Enterprise Knowledge Fusion RAG"
     app_env: Literal["development", "test", "production"] = "development"

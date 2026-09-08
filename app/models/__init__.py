@@ -58,13 +58,22 @@ from app.models.query import (
     SourceIndexResult,
 )
 from app.models.routing import RoutingIntent, RoutingKind, RoutingRuleMatch, RoutingTrace
-from app.models.sources import Source, SourceConfig, SourceStatus, SourceType, SourceUpdate
+from app.models.sources import (
+    Classification,
+    Source,
+    SourceConfig,
+    SourceStatus,
+    SourceType,
+    SourceUpdate,
+    classification_visible,
+)
 
 __all__ = [
     "AnswerCitationSegment",
     "BatchGraphExtraction",
     "Citation",
     "CitationLocator",
+    "Classification",
     "CrawlFailure",
     "CrawlManifest",
     "CsvCitationLocator",
@@ -119,4 +128,5 @@ __all__ = [
     "WebsiteCitationLocator",
     "WebsiteIngestionRequest",
     "WebsiteIngestionResult",
+    "classification_visible",
 ]

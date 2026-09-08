@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 from app.core.exceptions import CsvValidationError, IngestionError
 from app.ingestion.csv import CsvConnector, ParsedCsv
+from app.ingestion.injection_scan import scan_documents
 from app.models import (
     CsvIngestionResult,
     CsvPreviewResult,
@@ -94,6 +95,12 @@ class CsvIngestionService:
             if not documents:
                 raise CsvValidationError("No row contains a value in the selected text columns")
             await self._storage.save_documents(workspace_id, source.source_id, documents)
+            flags = scan_documents(documents)
+            if flags:
+                logger.warning(
+                    "Ingested content flagged for possible prompt injection",
+                    extra={"workspace_id": workspace_id, "action": "ingestion.flagged"},
+                )
             source = await self._repository.update(
                 workspace_id,
                 source.source_id,
@@ -105,6 +112,7 @@ class CsvIngestionService:
                                 "row_count": len(parsed.rows),
                                 "document_count": len(documents),
                                 "skipped_count": skipped_count,
+                                **({"injection_flags": flags} if flags else {}),
                             }
                         },
                         deep=True,

@@ -7,13 +7,17 @@ from fastapi import Depends, FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from app.api.dependencies import close_application_dependencies
+from app.api.routes.audit import router as audit_router
 from app.api.routes.evaluations import router as evaluations_router
 from app.api.routes.graph import router as graph_router
 from app.api.routes.health import router as health_router
 from app.api.routes.query import router as query_router
+from app.api.routes.retention import crawl_router
+from app.api.routes.retention import router as retention_router
 from app.api.routes.settings import router as settings_router
 from app.api.routes.sources import router as sources_router
 from app.auth.authorization import authorize
+from app.auth.org_routes import router as org_router
 from app.auth.routes import router as auth_router
 from app.core.config import get_settings
 from app.core.exceptions import GraphConfigurationError
@@ -61,4 +65,8 @@ app.include_router(evaluations_router)
 app.include_router(settings_router)
 
 app.include_router(auth_router)
+app.include_router(org_router)
 app.include_router(jobs_router)
+app.include_router(audit_router)
+app.include_router(retention_router)
+app.include_router(crawl_router)

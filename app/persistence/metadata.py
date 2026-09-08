@@ -196,6 +196,7 @@ sources_table = Table(
     Column("name", String(500), nullable=False),
     Column("config", JSON, nullable=False),
     Column("status", String(32), nullable=False),
+    Column("classification", String(16), nullable=False, server_default="internal"),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     Column("version", Integer, nullable=False, default=1),
@@ -289,6 +290,8 @@ class PostgresPersistenceRepository:
                 values["name"] = changes.name
             if "config" in changes.model_fields_set and changes.config is not None:
                 values["config"] = changes.config.model_dump(mode="json")
+            if "classification" in changes.model_fields_set and changes.classification is not None:
+                values["classification"] = changes.classification.value
             await session.execute(
                 _source_select(workspace_id, source_id).with_only_columns(sources_table.c.source_id)
             )
@@ -555,6 +558,7 @@ def _source_values(source: Source) -> dict[str, Any]:
         "name": source.name,
         "config": source.config.model_dump(mode="json"),
         "status": source.status.value,
+        "classification": source.classification.value,
         "created_at": source.created_at,
         "updated_at": source.updated_at,
     }
@@ -568,6 +572,7 @@ def _source_from_row(row: Mapping[str, Any]) -> Source:
             "name": row["name"],
             "config": row["config"],
             "status": row["status"],
+            "classification": row.get("classification", "internal"),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }

@@ -1,11 +1,13 @@
 """Routed retrieval, citation, and grounded-answer orchestration."""
 
 import logging
+from uuid import UUID
 
 from app.citations import build_citations, validate_inline_citations
-from app.core.exceptions import GraphIndexNotFoundError, RetrievalError
+from app.core.exceptions import GraphIndexNotFoundError, RetrievalError, SourceNotFoundError
 from app.generation.extractive import Generator
 from app.models import (
+    Classification,
     Evidence,
     FusionStrategy,
     QueryRequest,
@@ -14,6 +16,7 @@ from app.models import (
     RoutingIntent,
     RoutingKind,
     RoutingTrace,
+    classification_visible,
 )
 from app.repositories import SourceRepository
 from app.reranking.service import RerankingService
@@ -62,15 +65,30 @@ class QueryService:
         self._database_retriever = database_retriever
         self._query_router = query_router
 
-    async def query(self, request: QueryRequest) -> QueryResponse:
-        """Retrieve evidence and return citations or an insufficient-evidence response."""
+    async def query(
+        self,
+        request: QueryRequest,
+        *,
+        max_classification: Classification = Classification.RESTRICTED,
+    ) -> QueryResponse:
+        """Retrieve evidence and return citations or an insufficient-evidence response.
+
+        Sources classified above ``max_classification`` are excluded from every retriever's
+        candidate set, so restricted content cannot surface through fusion, re-ranking,
+        citations, the trace, or the answer.
+        """
         top_k = request.top_k or self._default_top_k
         if top_k > self._max_top_k:
             raise RetrievalError(f"top_k cannot exceed {self._max_top_k}")
         for source_id in request.source_ids:
-            await self._repository.get(request.workspace_id, source_id)
+            source = await self._repository.get(request.workspace_id, source_id)
+            if not classification_visible(source.classification, max_classification):
+                raise SourceNotFoundError(f"Source {source_id} was not found")
+        scoped_source_ids = await self._clearance_scope(request, max_classification)
         if request.retrieval_mode is RetrievalMode.AUTO:
-            return await self._query_automatically(request, top_k)
+            return await self._query_automatically(
+                request, top_k, max_classification, scoped_source_ids
+            )
         if request.retrieval_mode is RetrievalMode.FUSION:
             if self._fusion_retriever is None:
                 raise RetrievalError("Fusion retrieval is not configured")
@@ -81,7 +99,7 @@ class QueryService:
                 request.workspace_id,
                 request.question,
                 top_k=candidate_top_k,
-                source_ids=frozenset(request.source_ids),
+                source_ids=scoped_source_ids,
                 modes=tuple(request.fusion_retrievers or DEFAULT_FUSION_RETRIEVERS),
                 strategy=request.fusion_strategy or FusionStrategy.RRF,
                 min_similarity=request.min_similarity,
@@ -134,17 +152,42 @@ class QueryService:
             request.workspace_id,
             request.question,
             top_k=top_k,
-            source_ids=frozenset(request.source_ids),
+            source_ids=scoped_source_ids,
             min_similarity=minimum_score,
         )
         trace = self._override_trace(request, (request.retrieval_mode,))
         self._log_route(request, trace)
         return await self._build_response(request.question, evidence, trace)
 
-    async def _query_automatically(self, request: QueryRequest, top_k: int) -> QueryResponse:
+    async def _clearance_scope(
+        self, request: QueryRequest, max_classification: Classification
+    ) -> frozenset[UUID]:
+        """Source ids the caller may retrieve from, after clearance and the request filter."""
+        if max_classification is Classification.RESTRICTED and not request.source_ids:
+            return frozenset(request.source_ids)
+        visible = {
+            source.source_id
+            for source in await self._repository.list(request.workspace_id)
+            if classification_visible(source.classification, max_classification)
+        }
+        if request.source_ids:
+            visible &= set(request.source_ids)
+        return frozenset(visible)
+
+    async def _query_automatically(
+        self,
+        request: QueryRequest,
+        top_k: int,
+        max_classification: Classification,
+        scoped_source_ids: frozenset[UUID],
+    ) -> QueryResponse:
         if self._query_router is None or self._fusion_retriever is None:
             raise RetrievalError("Automatic query routing is not configured")
-        sources = await self._repository.list(request.workspace_id)
+        sources = [
+            source
+            for source in await self._repository.list(request.workspace_id)
+            if classification_visible(source.classification, max_classification)
+        ]
         trace = self._query_router.route(
             request.question,
             sources,
@@ -152,7 +195,7 @@ class QueryService:
             self._available_retrievers(),
         )
         try:
-            evidence = await self._execute_auto_plan(request, trace, top_k)
+            evidence = await self._execute_auto_plan(request, trace, top_k, scoped_source_ids)
         except GraphIndexNotFoundError:
             if RetrievalMode.GRAPH not in trace.selected_retrievers:
                 raise
@@ -168,7 +211,7 @@ class QueryService:
                 request.workspace_id,
                 request.question,
                 top_k=top_k,
-                source_ids=frozenset(request.source_ids),
+                source_ids=scoped_source_ids,
                 modes=DEFAULT_FUSION_RETRIEVERS,
                 strategy=FusionStrategy.RRF,
                 min_similarity=request.min_similarity,
@@ -177,10 +220,18 @@ class QueryService:
         return await self._build_response(request.question, evidence, trace)
 
     async def _execute_auto_plan(
-        self, request: QueryRequest, trace: RoutingTrace, top_k: int
+        self,
+        request: QueryRequest,
+        trace: RoutingTrace,
+        top_k: int,
+        scoped_source_ids: frozenset[UUID],
     ) -> list[Evidence]:
         modes = tuple(trace.selected_retrievers)
         source_ids = frozenset(trace.selected_source_ids)
+        if scoped_source_ids:
+            source_ids = (
+                frozenset(source_ids) & scoped_source_ids if source_ids else scoped_source_ids
+            )
         if modes == (RetrievalMode.SQL,):
             if self._database_retriever is None:
                 raise RetrievalError("SQL retrieval is not configured")

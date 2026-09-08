@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import json
+import logging
 from typing import Any
 from urllib.parse import urlsplit
 from uuid import UUID, uuid5
@@ -26,8 +27,16 @@ from app.api.dependencies import (
 )
 from app.core.config import get_settings
 from app.core.exceptions import SourceNotFoundError
+from app.ingestion.injection_scan import scan_documents
 from app.jobs.repository import jobs, workspace_jobs
-from app.models import NormalizedDocument, Source, SourceConfig, SourceStatus, SourceType
+from app.models import (
+    NormalizedDocument,
+    Source,
+    SourceConfig,
+    SourceStatus,
+    SourceType,
+    SourceUpdate,
+)
 from app.persistence import GenerationKind
 from app.retrieval.pinecone_store import PineconeVectorStore
 from app.retrieval.sentence_window import build_sentence_window_documents
@@ -38,6 +47,7 @@ from app.retrieval.vector_store import (
 )
 from app.storage.vercel_blob import VercelBlobSourceStorage
 
+logger = logging.getLogger(__name__)
 _DOCS = TypeAdapter(list[NormalizedDocument])
 
 
@@ -167,10 +177,13 @@ async def parse(job: dict[str, Any], cp: dict[str, Any]) -> dict[str, Any]:
     if spec["kind"] == "website":
         # One page per durable step. Reuse SSRF, redirect, robots and extraction policies.
         service = get_website_ingestion_service()
+        allowed_domains = await _workspace_crawl_allowlist(workspace)
         queue = cp.get("urls", [spec["url"]])
         visited = cp.get("visited", [])
         current = queue.pop(0)
-        crawl = await service._crawler.crawl(current, crawl_same_domain=False, page_limit=1)
+        crawl = await service._crawler.crawl(
+            current, crawl_same_domain=False, page_limit=1, allowed_domains=allowed_domains
+        )
         page_docs = service.build_documents(source, crawl)
         visited.append(current)
         for page in crawl.pages:
@@ -231,9 +244,33 @@ async def parse(job: dict[str, Any], cp: dict[str, Any]) -> dict[str, Any]:
         d.model_copy(update={"document_id": uuid5(source_id, str(i))})
         for i, d in enumerate(documents)
     ]
+    flags = scan_documents(documents)
+    if flags:
+        logger.warning(
+            "Ingested content flagged for possible prompt injection",
+            extra={"workspace_id": workspace, "action": "ingestion.flagged"},
+        )
+        source = await repository.update(
+            workspace,
+            source_id,
+            SourceUpdate(
+                config=source.config.model_copy(
+                    update={"options": {**source.config.options, "injection_flags": flags}},
+                    deep=True,
+                )
+            ),
+        )
     await storage().save_documents(workspace, source_id, documents)
     cp["stage"] = "snapshot"
     return cp
+
+
+async def _workspace_crawl_allowlist(workspace_id: str) -> list[str] | None:
+    if get_settings().metadata_store_backend != "postgresql":
+        return None
+    from app.retention import RetentionRepository
+
+    return await RetentionRepository(get_metadata_engine()).crawl_allowlist(workspace_id)
 
 
 async def snapshot(job: dict[str, Any], cp: dict[str, Any]) -> dict[str, Any]:

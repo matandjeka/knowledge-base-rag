@@ -26,6 +26,28 @@ class SourceStatus(StrEnum):
     FAILED = "failed"
 
 
+class Classification(StrEnum):
+    """Confidentiality label on a source, in ascending sensitivity order."""
+
+    PUBLIC = "public"
+    INTERNAL = "internal"
+    CONFIDENTIAL = "confidential"
+    RESTRICTED = "restricted"
+
+
+_CLASSIFICATION_RANK: dict[Classification, int] = {
+    Classification.PUBLIC: 0,
+    Classification.INTERNAL: 1,
+    Classification.CONFIDENTIAL: 2,
+    Classification.RESTRICTED: 3,
+}
+
+
+def classification_visible(label: Classification, clearance: Classification) -> bool:
+    """Return whether a holder of ``clearance`` may see a source labelled ``label``."""
+    return _CLASSIFICATION_RANK[label] <= _CLASSIFICATION_RANK[clearance]
+
+
 class SourceConfig(BaseModel):
     """Connector configuration safe to pass into an ingestion workflow."""
 
@@ -46,6 +68,7 @@ class Source(BaseModel):
     name: str = Field(min_length=1)
     config: SourceConfig
     status: SourceStatus = SourceStatus.REGISTERED
+    classification: Classification = Classification.INTERNAL
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -57,6 +80,7 @@ class SourceUpdate(BaseModel):
 
     name: str | None = Field(default=None, min_length=1)
     config: SourceConfig | None = None
+    classification: Classification | None = None
 
     @model_validator(mode="after")
     def reject_explicit_nulls(self) -> Self:

@@ -344,7 +344,7 @@ async def test_faiss_rejects_corrupted_document_mapping(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_query_endpoint_returns_contract_and_maps_missing_index() -> None:
     class StubQueryService:
-        async def query(self, request: QueryRequest) -> QueryResponse:
+        async def query(self, request: QueryRequest, **_kwargs: object) -> QueryResponse:
             if request.question == "missing":
                 raise IndexNotFoundError("No vector index exists for this workspace")
             return QueryResponse(answer="No evidence", insufficient_evidence=True)

@@ -27,7 +27,8 @@ Use `.env.example` and `frontend/.env.example` for variable names. No secret bel
 - Voyage API key. Default embedding `voyage-4`; initial reranker `rerank-2.5`, pending live evaluation.
 - JWT secret and workflow secret: independent random values of at least 32 characters.
 - A transactional mail webhook accepting `{to, template, url}` with a bearer secret.
-  Templates are `verify` and `reset`; return a successful HTTP status only after accepting delivery.
+  Templates are `verify`, `reset`, and `invite` (Phase 19a organization invitations); return a
+  successful HTTP status only after accepting delivery.
   Configure this before allowing public registration. Tokens expire in one hour and are single-use.
 - Existing OpenAI configuration for optional graph extraction and natural-language SQL.
 
