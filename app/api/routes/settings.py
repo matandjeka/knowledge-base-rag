@@ -29,11 +29,12 @@ async def effective_settings() -> EffectiveSettings:
         sql_retrieval_configured=(
             settings.openai_api_key is not None and settings.sql_generation_model is not None
         ),
+        reranking_available=settings.reranker_provider != "none",
         production_persistence_ready=(
             settings.metadata_store_backend == "postgresql"
             and settings.source_storage_backend in {"azure_blob", "vercel_blob"}
             and settings.lexical_store_backend in {"azure_blob", "vercel_blob"}
             and settings.vector_store_backend == "pinecone"
-            and settings.graph_store_backend == "neo4j"
+            and settings.graph_store_backend in {"postgresql", "neo4j"}
         ),
     )

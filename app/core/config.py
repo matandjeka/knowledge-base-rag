@@ -26,8 +26,11 @@ class Settings(BaseSettings):
     workflow_dispatch_url: str | None = None
     workflow_bypass_secret: SecretStr | None = None
     blob_read_write_token: SecretStr | None = None
-    embedding_provider: Literal["huggingface", "voyage"] = "huggingface"
-    reranker_provider: Literal["huggingface", "voyage"] = "huggingface"
+    embedding_provider: Literal["huggingface", "voyage", "openai"] = "huggingface"
+    reranker_provider: Literal["huggingface", "voyage", "none"] = "huggingface"
+    openai_embedding_model: Literal["text-embedding-3-small", "text-embedding-3-large"] = (
+        "text-embedding-3-small"
+    )
     voyage_api_key: SecretStr | None = None
     voyage_embedding_model: str = "voyage-4"
     voyage_reranker_model: str = "rerank-2.5"
@@ -49,7 +52,7 @@ class Settings(BaseSettings):
     metadata_store_backend: Literal["memory", "postgresql"] = "memory"
     source_storage_backend: Literal["local", "azure_blob", "vercel_blob"] = "local"
     lexical_store_backend: Literal["local", "azure_blob", "vercel_blob"] = "local"
-    graph_store_backend: Literal["local", "neo4j"] = "local"
+    graph_store_backend: Literal["local", "postgresql", "neo4j"] = "local"
     metadata_database_url: SecretStr | None = None
     metadata_database_schema: str = Field(
         default="rag", min_length=1, max_length=63, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$"
@@ -69,6 +72,10 @@ class Settings(BaseSettings):
     pdf_chunk_overlap: int = Field(default=200, ge=0)
     website_max_pages: int = Field(default=20, ge=1, le=100)
     website_max_response_bytes: int = Field(default=5 * 1024 * 1024, gt=0)
+    # Hostnames allowed to resolve to private / loopback addresses when crawling. Empty by
+    # default (public-only). Set to e.g. ["127.0.0.1", "localhost"] for a local-site demo or an
+    # internal-network deployment; leave empty in any internet-facing deployment.
+    website_allowed_private_hosts: list[str] = []
     website_request_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
     website_max_redirects: int = Field(default=5, ge=0, le=10)
     website_crawl_delay_seconds: float = Field(default=0.25, ge=0, le=10)
@@ -120,6 +127,9 @@ class Settings(BaseSettings):
     graph_extraction_max_batch_characters: int = Field(default=20_000, ge=100)
     graph_retrieval_max_hops: int = Field(default=2, ge=1, le=4)
     sql_generation_model: str | None = Field(default=None, min_length=1)
+    # Allow registering and querying a SQLite database source. Off by default (PostgreSQL only);
+    # enable for the local demo or a read-only SQLite analytics file.
+    sql_allow_sqlite: bool = False
     sql_generation_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
     sql_generation_max_retries: int = Field(default=2, ge=0, le=10)
     sql_execution_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
@@ -159,6 +169,12 @@ class Settings(BaseSettings):
             self.embedding_provider == "voyage" or self.reranker_provider == "voyage"
         ) and self.voyage_api_key is None:
             raise ValueError("VOYAGE_API_KEY is required")
+        if self.embedding_provider == "openai":
+            if self.openai_api_key is None:
+                raise ValueError("OPENAI_API_KEY is required for OpenAI embeddings")
+            maximum = 1536 if self.openai_embedding_model == "text-embedding-3-small" else 3072
+            if self.embedding_dimension > maximum:
+                raise ValueError("OpenAI embedding dimension exceeds the selected model limit")
         if self.embedding_provider == "voyage" and self.embedding_dimension not in {
             256,
             512,
@@ -189,12 +205,14 @@ class Settings(BaseSettings):
                 )
             if (
                 not self.auth_enabled
-                or self.embedding_provider != "voyage"
-                or self.reranker_provider != "voyage"
+                or self.embedding_provider not in {"openai", "voyage"}
+                or self.reranker_provider not in {"none", "voyage"}
             ):
                 raise ValueError("Serverless requires authentication and hosted models")
             if self.workflow_secret is None or len(self.workflow_secret.get_secret_value()) < 32:
                 raise ValueError("WORKFLOW_SECRET must contain at least 32 characters")
+        if self.graph_store_backend == "postgresql" and self.metadata_store_backend != "postgresql":
+            raise ValueError("PostgreSQL graph storage requires METADATA_STORE_BACKEND=postgresql")
         required: list[str] = []
         if self.metadata_store_backend == "postgresql" and self.metadata_database_url is None:
             required.append("METADATA_DATABASE_URL")
@@ -224,12 +242,14 @@ class Settings(BaseSettings):
                 "SOURCE_STORAGE_BACKEND": (self.source_storage_backend, "azure_blob"),
                 "LEXICAL_STORE_BACKEND": (self.lexical_store_backend, "azure_blob"),
                 "VECTOR_STORE_BACKEND": (self.vector_store_backend, "pinecone"),
-                "GRAPH_STORE_BACKEND": (self.graph_store_backend, "neo4j"),
+                "GRAPH_STORE_BACKEND": (self.graph_store_backend, "postgresql"),
             }
             invalid = [
                 name
                 for name, (actual, wanted) in expected.items()
-                if actual != wanted and not (wanted == "azure_blob" and actual == "vercel_blob")
+                if actual != wanted
+                and not (wanted == "azure_blob" and actual == "vercel_blob")
+                and not (name == "GRAPH_STORE_BACKEND" and actual == "neo4j")
             ]
             if invalid:
                 raise ValueError(

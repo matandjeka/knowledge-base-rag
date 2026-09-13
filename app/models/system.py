@@ -17,12 +17,13 @@ class EffectiveSettings(BaseModel):
     metadata_store_backend: Literal["memory", "postgresql"]
     source_storage_backend: Literal["local", "azure_blob", "vercel_blob"]
     lexical_store_backend: Literal["local", "azure_blob", "vercel_blob"]
-    graph_store_backend: Literal["local", "neo4j"]
+    graph_store_backend: Literal["local", "postgresql", "neo4j"]
     retrieval_top_k: int = Field(ge=1, le=20)
     retrieval_max_top_k: int = Field(ge=1, le=20)
     retrieval_min_similarity: float = Field(ge=-1, le=1)
     graph_retrieval_configured: bool
     sql_retrieval_configured: bool
+    reranking_available: bool = True
     production_persistence_ready: bool
 
 

@@ -50,6 +50,7 @@ local = [
     "streamlit>=1.48,<2",
     "torch>=2.2,<2.3; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "transformers>=4.41,<4.50; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "pgserver>=0.1.4,<0.2",
 ]
 dev = [
     {include-group = "local"},

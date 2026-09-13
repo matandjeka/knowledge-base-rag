@@ -18,6 +18,7 @@ from app.ingestion.website import (
     SafeHttpFetcher,
     WebsiteCrawler,
     normalize_url,
+    resolve_public_addresses,
     validate_public_url,
 )
 from app.ingestion.website_service import WebsiteIngestionService
@@ -113,6 +114,24 @@ async def test_network_validation_rejects_any_non_public_dns_result() -> None:
 
     with pytest.raises(WebsiteValidationError, match="non-public"):
         await validate_public_url("https://example.com/", resolver)
+
+
+@pytest.mark.asyncio
+async def test_allowed_private_hosts_permits_loopback_only_for_listed_hosts() -> None:
+    async def resolver(_: str, __: int) -> tuple[str, ...]:
+        return ("127.0.0.1",)
+
+    assert await resolve_public_addresses(
+        "http://localhost:8900/", resolver, allowed_private_hosts=frozenset({"localhost"})
+    ) == ("127.0.0.1",)
+    with pytest.raises(WebsiteValidationError, match="non-public"):
+        await resolve_public_addresses(
+            "http://intranet.corp/", resolver, allowed_private_hosts=frozenset({"localhost"})
+        )
+    # A non-standard port survives normalization only for loopback hosts.
+    assert normalize_url("http://localhost:8900/docs") == "http://localhost:8900/docs"
+    with pytest.raises(WebsiteValidationError, match="standard"):
+        normalize_url("http://example.com:8900/")
 
 
 @pytest.mark.asyncio

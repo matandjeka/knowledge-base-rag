@@ -24,6 +24,7 @@ from app.api.dependencies import (
 from app.core.config import get_settings
 from app.core.exceptions import SourceNotFoundError
 from app.graph.neo4j_store import Neo4jGraphStore
+from app.graph.postgres_store import PostgresGraphStore
 from app.graph.store import LocalGraphStore
 from app.models import CrawlManifest, NormalizedDocument, Source, SourceStatus, SourceUpdate
 from app.persistence import GenerationKind, PersistenceRepository
@@ -51,7 +52,7 @@ class LocalPersistenceMigrator:
         source_storage: AzureBlobSourceStorage,
         vector_store: PineconeVectorStore,
         lexical_store: BlobLexicalStore,
-        graph_store: Neo4jGraphStore,
+        graph_store: Neo4jGraphStore | PostgresGraphStore,
         migration_id: UUID,
     ) -> None:
         self._root = local_root.resolve()
@@ -310,8 +311,8 @@ async def _run(arguments: argparse.Namespace) -> int:
         raise ValueError("Migration requires VECTOR_STORE_BACKEND=pinecone")
     if not isinstance(lexical_store, BlobLexicalStore):
         raise ValueError("Migration requires LEXICAL_STORE_BACKEND=azure_blob")
-    if not isinstance(graph_store, Neo4jGraphStore):
-        raise ValueError("Migration requires GRAPH_STORE_BACKEND=neo4j")
+    if not isinstance(graph_store, (Neo4jGraphStore, PostgresGraphStore)):
+        raise ValueError("Migration requires GRAPH_STORE_BACKEND=postgresql or neo4j")
     migrator = LocalPersistenceMigrator(
         settings.data_dir,
         get_source_repository(),

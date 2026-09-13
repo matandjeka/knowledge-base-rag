@@ -22,9 +22,12 @@ Use `.env.example` and `frontend/.env.example` for variable names. No secret bel
 - PostgreSQL metadata database with a dedicated `rag` schema. Use direct/session-compatible
   connections for migrations and transaction-pool-compatible runtime settings. The runtime
   currently sets `search_path` in connection parameters; verify pooler support or use a direct URL.
-- New Pinecone **cosine, 1024-dimensional** index for Voyage. Keep the old BGE index intact.
-- Neo4j URI/database/credentials as in Phase 16.
-- Voyage API key. Default embedding `voyage-4`; initial reranker `rerank-2.5`, pending live evaluation.
+- New Pinecone **cosine, 1024-dimensional** index for OpenAI. Keep the old BGE index intact.
+- Graph snapshots use the same PostgreSQL database and `rag` schema; no graph extension or
+  separate Neo4j service is required.
+- OpenAI API key. Embeddings use `text-embedding-3-small` at 1,024 dimensions.
+  Set `EMBEDDING_PROVIDER=openai`, `OPENAI_EMBEDDING_MODEL=text-embedding-3-small`, and
+  `RERANKER_PROVIDER=none`; fusion retrieval remains available without dedicated reranking.
 - JWT secret and workflow secret: independent random values of at least 32 characters.
 - A transactional mail webhook accepting `{to, template, url}` with a bearer secret.
   Templates are `verify`, `reset`, and `invite` (Phase 19a organization invitations); return a
@@ -34,7 +37,7 @@ Use `.env.example` and `frontend/.env.example` for variable names. No secret bel
 
 For API production set `APP_ENV=production`, `SERVERLESS=true`, `AUTH_ENABLED=true`,
 `AUTH_REQUIRE_VERIFICATION=true`, metadata `postgresql`, source/lexical `vercel_blob`,
-vector `pinecone`, graph `neo4j`, embedding/reranker `voyage`, and `EMBEDDING_DIMENSION=1024`.
+vector `pinecone`, graph `postgresql`, embedding `openai`, reranker `none`, and `EMBEDDING_DIMENSION=1024`.
 Set `FRONTEND_URL`, `AUTH_ALLOWED_ORIGINS`, and `WORKFLOW_DISPATCH_URL` to the deployed frontend.
 Frontend `RAG_API_URL` points to the API; `FRONTEND_ORIGIN` matches its own origin.
 If preview deployment protection is enabled, configure bypass credentials for both call directions.
@@ -66,8 +69,8 @@ An operator must explicitly assign ownership before importing any legacy documen
 4. Ingest a website. Close the browser; verify the job still finishes. Retry a failed step and
    redeliver a completed step. Check that no partial generation is published.
 5. Query vector, window, lexical and fusion modes; verify page/URL/row citations and private originals.
-6. Run live Voyage quality comparisons and calibrate similarity thresholds. The BGE 0.70 threshold
-   is a local default, not a validated Voyage cutoff. Keep model/dimension constant during a job.
+6. Run live OpenAI embedding quality comparisons and calibrate similarity thresholds. The BGE 0.70 threshold
+   is a local default, not a validated OpenAI cutoff. Keep model/dimension constant during a job.
 7. Restart/redeploy both projects and repeat retrieval. Verify evaluation reports are stored under
    `workspaces/<workspace_id>/evaluations/<report>.json` in private Blob.
 8. Check function bundle size, memory, maximum step duration, provider costs, and logs without source
@@ -89,3 +92,23 @@ transactions, provider response validation, private Blob transport doubles, PDF/
 and graph job checkpoints. Browser tests mock API responses; they establish UI behavior, not
 live cloud connectivity. PostgreSQL row-lock concurrency, Vercel Workflow delivery, provider
 quality, private uploads/downloads, and mail delivery require the configured preview environment.
+
+## PostgreSQL graph storage
+
+Set `GRAPH_STORE_BACKEND=postgresql` with `METADATA_STORE_BACKEND=postgresql`. Apply
+`20260912_0005` using the migration command above before starting the API. Immutable graph
+snapshots preserve citations and use the existing PostgreSQL active-generation pointer.
+The application still loads each graph into memory for traversal; this change does not increase
+the supported graph size. Existing Neo4j graphs are not automatically copied: after switching storage, rebuild the graph
+from ready sources before serving graph queries, or keep its Neo4j configuration until
+a migration is arranged. Rebuilding uses the configured extraction model.
+
+## OpenAI embedding cutover
+
+Create a separate cosine Pinecone index with 1,024 dimensions for OpenAI embeddings. Do not
+reuse a populated Voyage/BGE index, even if its dimensions match. Cancel or finish old ingestion
+jobs before switching providers; model/dimension checkpoints reject resuming jobs across a
+model change. Reindex ready sources before serving vector, sentence-window, or fusion queries.
+The local authenticated launcher also selects OpenAI embeddings and disables reranking; old
+local vector indexes likewise need rebuilding. Lexical and graph data do not need re-embedding.
+Oversized embedding inputs fail explicitly rather than being silently truncated.

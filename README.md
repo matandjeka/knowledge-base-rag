@@ -38,15 +38,28 @@ uv run pytest
 
 The API health endpoint is available at `http://127.0.0.1:8000/health`.
 
+## Try the demo
+
+```bash
+uv run python scripts/seed_demo.py        # add --skip-graph if OPENAI_API_KEY is unset
+uv run streamlit run ui/streamlit_app.py  # in another terminal → http://localhost:8501
+```
+
+`seed_demo.py` spins up the API, serves a small internal website, and ingests one fictional
+company ("Meridian Robotics") across all five source types — two PDFs, a crawled website, two
+CSVs, and a read-only SQLite database. Open the **Chat** tab and ask the questions in
+[`demo/GUIDE.md`](demo/GUIDE.md), which walks through every retrieval strategy and the
+inspectable citations. Press Ctrl-C in the seed terminal to stop everything.
+
 ## Production persistence
 
 Local development continues to use the in-memory source registry, filesystem artifacts, FAISS,
 and local graph generations. Production mode fails closed unless all durable adapters are
 configured: PostgreSQL for source metadata, lifecycle state, operation checkpoints, and active
 generation pointers; Azure Blob Storage for originals, normalized documents, crawl manifests,
-and immutable BM25 generations; Pinecone for vectors; and Neo4j for graph generations.
+and immutable BM25 generations; Pinecone for vectors; and PostgreSQL for immutable graph snapshots.
 
-Configure the `METADATA_*`, `AZURE_*`, `PINECONE_*`, and `NEO4J_*` variables documented in
+Configure the `METADATA_*`, `AZURE_*`, `PINECONE_*` variables documented in
 `.env.example`, then create the PostgreSQL schema before starting the application:
 
 ```bash
@@ -263,7 +276,7 @@ npm run dev --prefix frontend
 ```
 
 Unlike the local Streamlit interface, this client requires the authenticated API configuration.
-Deployment uses PostgreSQL, private Vercel Blob, Pinecone, Neo4j, Voyage models, and Vercel Workflow.
+Deployment uses PostgreSQL, private Vercel Blob, Pinecone, PostgreSQL graph snapshots, OpenAI embeddings, and Vercel Workflow.
 See [the deployment runbook](docs/phase18-deployment.md) for configuration, migrations,
 index migration, verification, and rollback. Azure deployment (Phase 17) remains skipped.
 
@@ -302,3 +315,13 @@ masks e-mails, bearer tokens, and secrets. Fixed-window rate limiting (`RATE_LIM
 (`app/ingestion/injection_scan.py`) marks sources containing prompt-injection patterns
 (`config.options.injection_flags`), and the OpenAI graph/SQL callers delimiter-wrap untrusted
 content. `GET/PUT /crawl-allowlist` (admin+) sets a per-workspace list of crawlable domains.
+
+Graph storage now supports `GRAPH_STORE_BACKEND=postgresql` using the metadata database.
+Apply migration `20260912_0005` before enabling it. Neo4j remains a legacy adapter for existing
+deployments; the current Vercel setup does not require it. See the deployment runbook for cutover.
+
+The current deployment and authenticated local launcher use OpenAI `text-embedding-3-small`
+embeddings (1,024 dimensions), with `RERANKER_PROVIDER=none`. Fusion combines retriever ranks;
+dedicated reranking is unavailable in this profile. Set `OPENAI_API_KEY` and rebuild existing
+vector indexes when switching from BGE or Voyage. The offline local Hugging Face profile and
+legacy Voyage adapters remain available through explicit configuration.

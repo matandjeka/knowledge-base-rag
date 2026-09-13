@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Runbook SRE-X9</title></head>
+<body>
+<h1>Runbook SRE-X9 — Regional Queue Isolation</h1>
+<p>SRE-X9 directs responders to isolate the regional queue when a data-path compromise is
+suspected. Isolation stops new messages from entering the affected region while the incident is
+investigated.</p>
+<p>After isolation, responders drain the held messages through a verification pipeline before
+reprocessing. Incident INC-4402 used this runbook to recover the billing queue.</p>
+</body></html>

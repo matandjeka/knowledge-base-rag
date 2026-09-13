@@ -16,6 +16,7 @@ from sqlalchemy import (
     MetaData,
     String,
     Table,
+    Text,
     UniqueConstraint,
     delete,
     insert,
@@ -188,6 +189,15 @@ class InMemoryPersistenceRepository:
 
 
 metadata = MetaData()
+graph_snapshots = Table(
+    "rag_graph_snapshots",
+    metadata,
+    Column("workspace_id", String(64), primary_key=True),
+    Column("generation_id", String(36), primary_key=True),
+    Column("snapshot_json", Text, nullable=False),
+    Column("metadata_json", Text, nullable=False),
+)
+
 sources_table = Table(
     "rag_sources",
     metadata,
