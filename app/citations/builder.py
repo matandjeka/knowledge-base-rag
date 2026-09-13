@@ -102,6 +102,7 @@ def _get_or_create_citation(
         locator=locator,
         locator_details=locator_details,
         score=evidence.raw_score,
+        confidence=evidence.normalized_score,
         retriever=evidence.retriever,
     )
     citations.append(citation)

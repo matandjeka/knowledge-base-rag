@@ -92,6 +92,7 @@ class QueryResponse(BaseModel):
     insufficient_evidence: bool
     citation_segments: list[AnswerCitationSegment] | None = None
     routing_trace: "RoutingTrace | None" = None
+    latency_ms: float | None = Field(default=None, ge=0)
 
 
 class SourceIndexResult(BaseModel):
