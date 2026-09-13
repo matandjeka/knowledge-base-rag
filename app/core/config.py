@@ -195,14 +195,12 @@ class Settings(BaseSettings):
         if self.serverless:
             if self.app_env != "production":
                 raise ValueError("Vercel deployments require APP_ENV=production")
-            if self.app_env == "production" and (
-                not self.auth_require_verification
-                or not self.auth_email_webhook_url
-                or self.auth_email_webhook_secret is None
+            if (
+                self.app_env == "production"
+                and self.auth_require_verification
+                and (not self.auth_email_webhook_url or self.auth_email_webhook_secret is None)
             ):
-                raise ValueError(
-                    "Public registration requires configured email verification and recovery"
-                )
+                raise ValueError("Email verification requires a configured mail webhook")
             if (
                 not self.auth_enabled
                 or self.embedding_provider not in {"openai", "voyage"}
