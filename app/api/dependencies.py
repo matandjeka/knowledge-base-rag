@@ -3,6 +3,7 @@
 from functools import lru_cache
 
 from fastapi import HTTPException
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -73,25 +74,46 @@ async def close_application_dependencies() -> None:
         await get_metadata_engine().dispose()
 
 
+def _bind_search_path(engine: AsyncEngine, schema: str) -> AsyncEngine:
+    """Force the session search_path on every new DBAPI connection.
+
+    Some managed Postgres proxies (e.g. Neon, even on their "direct" endpoint) do not
+    forward the `search_path` startup parameter, silently leaving unqualified table
+    names unresolved. Issuing an explicit `SET` on connect works regardless of what
+    the intermediary chooses to forward.
+    """
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _set_search_path(dbapi_connection: object, _record: object) -> None:
+        cursor = dbapi_connection.cursor()  # type: ignore[attr-defined]
+        cursor.execute(f"SET search_path TO {schema}")
+        cursor.close()
+
+    return engine
+
+
 @lru_cache
 def get_metadata_engine() -> AsyncEngine:
     """Return the process-wide async metadata database engine."""
     settings = get_settings()
     if settings.metadata_database_url is None:
         raise RuntimeError("METADATA_DATABASE_URL is required")
+    schema = settings.metadata_database_schema
     if settings.serverless:
-        return create_async_engine(
+        engine = create_async_engine(
             settings.metadata_database_url.get_secret_value(),
             poolclass=NullPool,
-            connect_args={"server_settings": {"search_path": settings.metadata_database_schema}},
+            connect_args={"server_settings": {"search_path": schema}},
         )
-    return create_async_engine(
-        settings.metadata_database_url.get_secret_value(),
-        pool_size=settings.metadata_pool_size,
-        pool_timeout=settings.metadata_pool_timeout_seconds,
-        pool_pre_ping=True,
-        connect_args={"server_settings": {"search_path": settings.metadata_database_schema}},
-    )
+    else:
+        engine = create_async_engine(
+            settings.metadata_database_url.get_secret_value(),
+            pool_size=settings.metadata_pool_size,
+            pool_timeout=settings.metadata_pool_timeout_seconds,
+            pool_pre_ping=True,
+            connect_args={"server_settings": {"search_path": schema}},
+        )
+    return _bind_search_path(engine, schema)
 
 
 @lru_cache

@@ -16,3 +16,5 @@ data/*
 
 # Embedded PostgreSQL for the local auth stack (scripts/local_auth_stack.py)
 .localdb/
+.vercel
+.env*
