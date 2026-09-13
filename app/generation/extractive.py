@@ -1,5 +1,6 @@
 """Provider-neutral generation contract and deterministic extractive baseline."""
 
+import re
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -28,8 +29,13 @@ class Generator(Protocol):
         ...
 
 
+def _literal_source_label(match: re.Match[str]) -> str:
+    """Use display brackets to distinguish source text from citation syntax."""
+    return match.group().replace("[", "\uff3b").replace("]", "\uff3d")
+
+
 class ExtractiveGenerator:
-    """Return top evidence passages verbatim with request-local citation markers."""
+    """Return evidence paragraphs with source labels distinct from citation markers."""
 
     def __init__(self, max_passages: int = 3) -> None:
         self._max_passages = max_passages
@@ -47,5 +53,14 @@ class ExtractiveGenerator:
         for item in evidence[: self._max_passages]:
             citation_ids = item.metadata.get("citation_ids", [])
             markers = " ".join(f"[{citation_id}]" for citation_id in citation_ids)
-            passages.append(f"{item.content} {markers}".rstrip())
+            # Source-authored labels must never become request-local citations, even
+            # when they happen to match an assigned ID. Original evidence stays intact.
+            content = re.sub(
+                r"\[S[^\]\n]*\]?",
+                _literal_source_label,
+                item.content,
+            )
+            for paragraph in re.split(r"\n\s*\n", content):
+                if paragraph.strip():
+                    passages.append(f"{paragraph.strip()} {markers}".rstrip())
         return GeneratedAnswer(answer="\n\n".join(passages), insufficient_evidence=False)
