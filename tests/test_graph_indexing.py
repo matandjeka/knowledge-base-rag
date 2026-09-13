@@ -160,6 +160,35 @@ async def test_graph_indexing_batches_all_ready_documents_and_activates(tmp_path
 
 
 @pytest.mark.asyncio
+async def test_graph_indexing_excludes_database_sources_without_documents(
+    tmp_path: Path,
+) -> None:
+    storage = LocalSourceStorage(tmp_path)
+    repository = InMemorySourceRepository()
+    await _persist_ready_documents(storage, repository, count=1)
+    database_source = Source(
+        workspace_id="workspace",
+        name="database source",
+        config=SourceConfig(source_type=SourceType.DATABASE),
+    )
+    await repository.create(database_source)
+    await repository.transition("workspace", database_source.source_id, SourceStatus.INDEXING)
+    await repository.transition("workspace", database_source.source_id, SourceStatus.READY)
+    await storage.save_source(database_source)
+    extractor = DeterministicGraphExtractor()
+    store = LocalGraphStore(tmp_path)
+    service = GraphIndexingService(
+        repository, storage, extractor, store, batch_size=2, max_batch_characters=10_000
+    )
+
+    result = await service.rebuild("workspace")
+    snapshot = await store.load("workspace")
+
+    assert result.source_count == 1
+    assert database_source.source_id not in snapshot.source_ids
+
+
+@pytest.mark.asyncio
 async def test_failed_rebuild_keeps_previous_graph_active(tmp_path: Path) -> None:
     storage = LocalSourceStorage(tmp_path)
     repository = InMemorySourceRepository()

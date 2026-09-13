@@ -6,7 +6,7 @@ from uuid import uuid4
 from app.core.exceptions import IndexingError
 from app.graph.extraction import GRAPH_SCHEMA_VERSION, GraphExtractor, resolve_graph
 from app.graph.store import GraphStore
-from app.models import GraphIndexResult, GraphSnapshot, NormalizedDocument, SourceStatus
+from app.models import GraphIndexResult, GraphSnapshot, NormalizedDocument, SourceStatus, SourceType
 from app.persistence import GenerationKind, PersistenceRepository
 from app.repositories import SourceRepository
 from app.storage import SourceStorage
@@ -45,6 +45,7 @@ class GraphIndexingService:
             source
             for source in await self._repository.list(workspace_id)
             if source.status is SourceStatus.READY
+            and source.config.source_type != SourceType.DATABASE
         ]
         if not sources:
             raise IndexingError("No persisted ready sources are available for graph indexing")
