@@ -67,6 +67,7 @@ class Citation(BaseModel):
     locator: str = Field(min_length=1)
     locator_details: CitationLocator
     score: float
+    confidence: float | None = Field(default=None, ge=0, le=1)
     retriever: str = Field(min_length=1)
 
     @model_validator(mode="after")

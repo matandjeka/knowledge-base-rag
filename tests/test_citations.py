@@ -89,6 +89,21 @@ def test_committed_locator_benchmark_has_complete_source_accuracy() -> None:
     assert all(results)
 
 
+def test_citation_confidence_mirrors_evidence_normalized_score() -> None:
+    evidence = _evidence(raw_score=12.4, normalized_score=0.83)
+
+    citation = build_citations([evidence])[0]
+
+    assert citation.score == 12.4
+    assert citation.confidence == 0.83
+
+
+def test_citation_confidence_is_optional_when_evidence_lacks_it() -> None:
+    citation = build_citations([_evidence()])[0]
+
+    assert citation.confidence is None
+
+
 def test_canonical_identity_deduplicates_exact_support_but_not_distinct_passages() -> None:
     source_id = uuid4()
     duplicate_a = _evidence(source_id=source_id, content="Same fact.", page_number=3)

@@ -1,6 +1,7 @@
 """Baseline workspace-scoped retrieval and grounded-answer route."""
 
 import contextlib
+import time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -40,6 +41,7 @@ async def query_knowledge_base(
     clearance = (
         membership.effective_clearance if membership is not None else Classification.RESTRICTED
     )
+    started = time.perf_counter()
     try:
         response = await service.query(request, max_classification=clearance)
     except SourceNotFoundError as error:
@@ -77,4 +79,4 @@ async def query_knowledge_base(
 
         with contextlib.suppress(Exception):
             await RetentionRepository(get_metadata_engine()).record_query(request.workspace_id)
-    return response
+    return response.model_copy(update={"latency_ms": (time.perf_counter() - started) * 1000})

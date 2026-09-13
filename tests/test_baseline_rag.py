@@ -363,7 +363,10 @@ async def test_query_endpoint_returns_contract_and_maps_missing_index() -> None:
         app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    assert response.json() == {
+    body = response.json()
+    latency_ms = body.pop("latency_ms")
+    assert isinstance(latency_ms, float) and latency_ms >= 0
+    assert body == {
         "answer": "No evidence",
         "citations": [],
         "evidence": [],
