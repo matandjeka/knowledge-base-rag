@@ -310,3 +310,38 @@ async def test_generator_can_decline_irrelevant_retrieved_evidence() -> None:
 def test_pdf_locator_model_remains_strict() -> None:
     with pytest.raises(ValueError):
         PdfCitationLocator(page_number=0)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("label", ["[Section 2]", "[S0]", "[S9]", "[S1]", "[Source unfinished"])
+async def test_extractive_source_labels_are_not_answer_citations(label: str) -> None:
+    from app.generation.extractive import ExtractiveGenerator
+
+    original = f"Policy {label} applies.\n\nSecond factual paragraph."
+    evidence = [_evidence(content=original)]
+    citations = build_citations(evidence)
+    generated = await ExtractiveGenerator().generate("policy?", evidence, citations)
+    segments = validate_inline_citations(
+        generated.answer, citations, insufficient_evidence=generated.insufficient_evidence
+    )
+    assert len(segments) == 2
+    assert all(segment.citation_ids == ["S1"] for segment in segments)
+    assert segments[1].text == "Second factual paragraph."
+    assert label.replace("[", "\uff3b").replace("]", "\uff3d") in segments[0].text
+    assert evidence[0].content == original
+    assert label in citations[0].excerpt
+
+
+@pytest.mark.asyncio
+async def test_extractive_cites_each_source_paragraph_without_changing_other_brackets() -> None:
+    from app.generation.extractive import ExtractiveGenerator
+
+    evidence = [
+        _evidence(content="First [note].\n\nSecond."),
+        _evidence(content="Third.", page_number=2),
+    ]
+    citations = build_citations(evidence)
+    generated = await ExtractiveGenerator().generate("question", evidence, citations)
+    segments = validate_inline_citations(generated.answer, citations, insufficient_evidence=False)
+    assert [segment.text for segment in segments] == ["First [note].", "Second.", "Third."]
+    assert [segment.citation_ids for segment in segments] == [["S1"], ["S1"], ["S2"]]
