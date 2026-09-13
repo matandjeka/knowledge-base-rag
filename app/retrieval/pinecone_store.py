@@ -237,7 +237,7 @@ class PineconeVectorStore:
                     vectors=[
                         {
                             "id": _CONTROL_ID,
-                            "values": [0.0] * self._dimension,
+                            "values": self._placeholder_vector(),
                             "metadata": {
                                 "record_type": _CONTROL_KIND,
                                 "active_generation": str(metadata.generation_id),
@@ -303,9 +303,9 @@ class PineconeVectorStore:
         await self._ensure_compatible(dimension)
         if query.shape != (dimension,) or not np.isfinite(query).all():
             raise IndexingError("Query embedding is invalid for the vector index")
+        generation = await self.active_generation(workspace_id)
         try:
             async with self._index_factory() as index:
-                generation = await self._active_generation(index, workspace_id, required=True)
                 metadata_filter: dict[str, Any] = {
                     "record_type": {"$eq": _DOCUMENT_KIND},
                     "generation_id": {"$eq": str(generation)},
@@ -404,13 +404,23 @@ class PineconeVectorStore:
     def _generation_record(self, metadata: VectorGenerationMetadata) -> dict[str, Any]:
         return {
             "id": f"__generation__:{metadata.generation_id}",
-            "values": [0.0] * self._dimension,
+            "values": self._placeholder_vector(),
             "metadata": {
                 "record_type": _GENERATION_KIND,
                 "generation_id": str(metadata.generation_id),
                 "index_metadata": metadata.model_dump_json(),
             },
         }
+
+    def _placeholder_vector(self) -> list[float]:
+        """A non-retrievable control-record vector.
+
+        Pinecone rejects all-zero vectors on cosine-metric indexes ("Dense vectors must
+        contain at least one non-zero value"), so control/generation marker records —
+        never meant to be found via similarity search — need at least one non-zero
+        component instead of an all-zero placeholder.
+        """
+        return [1.0] + [0.0] * (self._dimension - 1)
 
     def _default_index_factory(self) -> AbstractAsyncContextManager[PineconeIndex]:
         from pinecone import AsyncIndex
