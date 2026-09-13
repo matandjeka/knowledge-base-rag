@@ -77,6 +77,8 @@ class QueryService:
         candidate set, so restricted content cannot surface through fusion, re-ranking,
         citations, the trace, or the answer.
         """
+        if request.rerank and self._reranking_service is None:
+            raise RetrievalError("Re-ranking is disabled; use fusion retrieval with rerank=false")
         top_k = request.top_k or self._default_top_k
         if top_k > self._max_top_k:
             raise RetrievalError(f"top_k cannot exceed {self._max_top_k}")

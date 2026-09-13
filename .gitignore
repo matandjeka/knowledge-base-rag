@@ -13,3 +13,6 @@ dist/
 # Local data and generated indexes
 data/*
 !data/.gitkeep
+
+# Embedded PostgreSQL for the local auth stack (scripts/local_auth_stack.py)
+.localdb/

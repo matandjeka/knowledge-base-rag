@@ -71,10 +71,13 @@ async def test_step_retries_rollback_and_duplicate_delivery_is_noop(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("kind", ["csv", "pdf"])
+@pytest.mark.parametrize("backend", ["pinecone", "faiss"])
 async def test_csv_job_indexes_both_representations_and_publishes_after_retry(
     repository: JobRepository,
     monkeypatch: Any,
     kind: str,
+    backend: str,
+    tmp_path: Any,
 ) -> None:
     import numpy as np
 
@@ -85,7 +88,11 @@ async def test_csv_job_indexes_both_representations_and_publishes_after_retry(
     from app.persistence import GenerationKind, InMemoryPersistenceRepository
     from app.repositories import InMemorySourceRepository
     from app.retrieval.pinecone_store import PineconeVectorStore
-    from app.retrieval.vector_store import VectorGenerationMetadata
+    from app.retrieval.vector_store import (
+        FaissVectorStore,
+        VectorGenerationMetadata,
+        VectorIndexKind,
+    )
     from app.storage.vercel_blob import VercelBlobLexicalStore, VercelBlobSourceStorage
     from tests.test_phase18_hosted import MemoryBlob
 
@@ -116,7 +123,7 @@ async def test_csv_job_indexes_both_representations_and_publishes_after_retry(
             assert len(generation.indexes) == 2
             self.finished = True
 
-    vectors = Vectors()
+    vectors = Vectors() if backend == "pinecone" else FaissVectorStore(tmp_path)
     monkeypatch.setattr(processing, "get_metadata_engine", lambda: repository.engine)
     monkeypatch.setattr(processing, "get_source_repository", lambda: source_repository)
     monkeypatch.setattr(processing, "get_source_storage", lambda: object_store)
@@ -157,11 +164,27 @@ async def test_csv_job_indexes_both_representations_and_publishes_after_retry(
         if result["status"] == "complete":
             break
     assert result["status"] == "complete"
-    assert vectors.finished
-    assert set(vectors.batches) == {"vector", "sentence_window"}
+    if isinstance(vectors, Vectors):
+        assert vectors.finished
+        assert set(vectors.batches) == {"vector", "sentence_window"}
     source = (await source_repository.list("client"))[0]
     assert source.status == SourceStatus.READY
     assert await coordinator.active_generation("client", GenerationKind.RETRIEVAL)
+    if isinstance(vectors, FaissVectorStore):
+        assert await vectors.active_generation("client") == await coordinator.active_generation(
+            "client", GenerationKind.RETRIEVAL
+        )
+        for representation in VectorIndexKind:
+            matches = await vectors.search(
+                "client",
+                np.asarray([0.6, 0.8], dtype=np.float32),
+                top_k=5,
+                source_ids=frozenset({source.source_id}),
+                model_name="voyage-test",
+                dimension=2,
+                index_kind=representation,
+            )
+            assert matches
     documents = await object_store.load_documents("client", source.source_id)
     if kind == "csv":
         assert [document.row_id for document in documents] == ["1", "2"]

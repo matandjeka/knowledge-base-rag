@@ -1,0 +1,7 @@
+sku,item,warehouse,quantity,unit_cost_usd
+SKU_88Z,Servo Actuator Mk3,north,412,58
+SKU_14A,Lidar Module R2,south,78,940
+SKU_52Q,Battery Pack 48V,north,203,210
+SKU_09H,Gripper Assembly,east,540,132
+SKU_71C,Control Board v5,south,151,86
+SKU_33T,Wheel Hub Motor,north,64,299

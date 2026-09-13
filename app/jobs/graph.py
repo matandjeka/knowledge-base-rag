@@ -1,4 +1,4 @@
-"""Checkpoint graph extraction batches before atomically publishing Neo4j generations."""
+"""Checkpoint graph extraction batches before atomically publishing durable graph generations."""
 
 from typing import Any
 from uuid import UUID

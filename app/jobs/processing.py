@@ -41,9 +41,11 @@ from app.persistence import GenerationKind
 from app.retrieval.pinecone_store import PineconeVectorStore
 from app.retrieval.sentence_window import build_sentence_window_documents
 from app.retrieval.vector_store import (
+    FaissVectorStore,
     VectorGenerationMetadata,
     VectorIndexKind,
     VectorIndexMetadata,
+    VectorIndexPayload,
 )
 from app.storage.vercel_blob import VercelBlobSourceStorage
 
@@ -316,11 +318,16 @@ async def embed(job: dict[str, Any], cp: dict[str, Any]) -> dict[str, Any]:
         vectors = await get_embedding_service().embed_documents([d.content for d in batch])
         await storage().write(key, json.dumps(vectors.tolist()).encode())
     store = get_vector_store()
-    if not isinstance(store, PineconeVectorStore):
-        raise ValueError("Durable jobs require Pinecone")
-    await store.upsert_job_batch(
-        job["workspace_id"], UUID(cp["generation_id"]), VectorIndexKind(cp["kind"]), batch, vectors
-    )
+    if isinstance(store, PineconeVectorStore):
+        await store.upsert_job_batch(
+            job["workspace_id"],
+            UUID(cp["generation_id"]),
+            VectorIndexKind(cp["kind"]),
+            batch,
+            vectors,
+        )
+    elif not isinstance(store, FaissVectorStore):
+        raise ValueError("Unsupported vector store for ingestion jobs")
     hashes = dict(cp["hashes"])
     hashes[cp["kind"]] = hashlib.sha256(
         (hashes.get(cp["kind"], "") + hashlib.sha256(vectors.tobytes()).hexdigest()).encode()
@@ -355,10 +362,40 @@ async def publish(job: dict[str, Any], cp: dict[str, Any]) -> dict[str, Any]:
             documents_sha256=hashlib.sha256(payload).hexdigest(),
         )
     store = get_vector_store()
-    assert isinstance(store, PineconeVectorStore)
-    await store.finish_job_generation(
-        workspace, VectorGenerationMetadata(generation_id=generation_id, indexes=indexes)
-    )
+    if isinstance(store, PineconeVectorStore):
+        await store.finish_job_generation(
+            workspace, VectorGenerationMetadata(generation_id=generation_id, indexes=indexes)
+        )
+    elif isinstance(store, FaissVectorStore):
+        # Local jobs retain the same embedding checkpoints, then build both FAISS
+        # representations together before activating the complete generation.
+        payloads = {}
+        for kind in VectorIndexKind:
+            documents = _DOCS.validate_json(
+                await storage().read(artifact(job, f"{kind.value}.json"))
+            )
+            batches = [
+                np.asarray(
+                    json.loads(
+                        await storage().read(
+                            artifact(job, f"embeddings-{kind.value}-{offset}.json")
+                        )
+                    ),
+                    dtype=np.float32,
+                )
+                for offset in range(0, len(documents), 32)
+            ]
+            payloads[kind] = VectorIndexPayload(documents, np.concatenate(batches))
+        await store.prepare_bundle(
+            workspace,
+            payloads,
+            model_name=cp["model_name"],
+            dimension=cp["dimension"],
+            generation_id=generation_id,
+        )
+        await store.activate(workspace, generation_id)
+    else:
+        raise ValueError("Unsupported vector store for ingestion jobs")
     lexical = get_lexical_store()
     await lexical.activate(workspace, generation_id)
     persistence = get_persistence_repository()

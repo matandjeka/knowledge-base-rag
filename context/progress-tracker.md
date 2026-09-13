@@ -1,24 +1,57 @@
 # Advanced Multi-Source Enterprise RAG — Progress Tracker
 
+## PostgreSQL graph storage update — September 12, 2026
+
+Plain PostgreSQL graph snapshots replace Neo4j in the current deployment plan. The new adapter,
+`20260912_0005` migration, dependency wiring, settings response, local launcher, and deployment
+configuration checker support this path. Neo4j remains available for existing deployments;
+existing graphs require an explicit rebuild/migration before switching. Historical phase notes
+below describe the original Neo4j implementation. Hosted PostgreSQL, Voyage, mail configuration,
+and cloud acceptance are still outstanding. Graph traversal remains in application memory.
+
+Validation: 262 backend tests passed, 1 opt-in live-model test skipped; Ruff lint/format and
+strict typing passed (113 app files); frontend typecheck and 3 tests passed. Migration
+`20260912_0005` was applied to local PostgreSQL. A real PostgreSQL smoke test in a temporary
+schema passed concurrent prepare retries, immutable-write rejection, publication visibility,
+reconnect recovery, and workspace isolation; the temporary schema was removed afterward.
+
+## OpenAI embedding update — September 12, 2026
+
+The current deployment profile and authenticated local launcher now use OpenAI
+`text-embedding-3-small` at 1,024 dimensions and `RERANKER_PROVIDER=none`. Fusion remains
+available; dedicated reranking is explicitly unavailable in the UI/API. Voyage is a legacy
+optional adapter. Existing vector indexes require re-embedding into the new model space;
+live relevance calibration and full cloud acceptance remain outstanding. Historical Voyage
+and Phase 10 notes below describe earlier implementation, not the current deployment profile.
+
+Validation: 274 backend tests passed, 1 opt-in live graph test skipped; lint/format and strict
+app typing passed (114 files). Frontend typecheck, all 3 frontend tests, and the production
+build passed. A live synthetic-text OpenAI request returned 1,024-dimensional embeddings.
+The provider tests cover batching/order, malformed vectors, model identity, transient retries,
+sanitized errors, missing-key/dimension validation, disabled reranking, serverless configuration,
+and rejection of old-model job checkpoints. The local `.env` and launcher now select OpenAI;
+existing sources were not automatically re-embedded. Live retrieval-quality acceptance remains
+pending, and the application has not been deployed to Vercel.
+
 ## Overall Status
-**Last Reviewed:** September 7, 2026
+**Last Reviewed:** September 12, 2026
 
-**Last Completed Implementation Phase:** Phase 16 — Production Persistence
+**Last Completed Implementation Phase:** Phase 19 — Enterprise Hardening (implementation-complete
+and code-reviewed; not deployment-validated).
 
-**Current Phase:** Phase 18 — Optional Vercel Frontend (in progress). The Vercel architecture was
-approved September 7, 2026 (`context/design/phase18.md`) and implementation covers the frontend,
-hosted-model, auth, and durable-job subsystems. A code review on September 7, 2026 and its
-follow-up fixes (branch `fix/phase18-review`) resolved the broken durable-job tests, tightened
-config/isolation guardrails, rewrote migration `0002` as a self-contained snapshot, and shortened
-the job-step database transaction. It is still not complete: no live Vercel deployment or cloud
-verification has been performed.
+**Current Phase:** None in active development. Every build-plan phase is either implemented or
+explicitly skipped. Remaining work includes local UI acceptance, live retrieval-quality evaluation, cloud
+deployment / restart-recovery acceptance for Phases 16, 18, and 19, and the implementation
+follow-ups listed below (see **Open Validation Work and Follow-ups**).
 
 **Skipped Phase:** Phase 17 — Azure Deployment, per user instruction on September 7, 2026.
 No Azure deployment implementation or provisioning was performed.
 
-**Exit-Criteria Verification:** Automated local coverage exists through Phase 16. Live model
-quality, full UI ingestion/query reliability, and full-stack production restart recovery remain
-unverified; Phase 16 is implementation-complete, not deployment-validated.
+**Exit-Criteria Verification:** Automated local coverage exists through Phase 19. Live model
+quality, full UI ingestion/query reliability, full-stack production restart recovery, and cloud
+Vercel/Voyage/Blob/Workflow/PostgreSQL/Neo4j acceptance remain unverified; local PostgreSQL-backed
+API startup and Next.js HTTP availability have been verified; Phases 16, 18, and 19
+are implementation-complete, not deployment-validated.
 
 Phases 2–12 now provide ingestion, coordinated baseline, sentence-window, and lexical index
 generations for FAISS/Pinecone plus durable local BM25 storage, OpenAI-assisted knowledge-graph
@@ -31,72 +64,99 @@ five-page Streamlit interface for chat, source management, retrieval experiments
 inspection, and safe effective settings.
 
 **Build-plan alignment:** Phases 0–16 are implemented with passing automated regression coverage.
-Phase 17 Azure Deployment is skipped. Phase 18 (Optional Vercel Frontend) is in progress: the
-backend-hosting question was resolved by targeting two Vercel projects (FastAPI API + Next.js
-frontend) with Vercel Blob, hosted Voyage embeddings/reranking, a new 1,024-dim Pinecone index,
-self-registration auth with per-client workspace isolation, and Vercel Workflow-orchestrated
-durable jobs. Phase 19 (Enterprise Hardening) is implemented on branch `19a-identity-access` —
-19a identity & access (organizations, memberships, roles, invitations, centrally role-gated
-endpoints), 19b governance (hash-chained audit log, retention policies + `rag-retention` purge
-CLI, source security labels with clearance-filtered retrieval), and 19c abuse & content safety
-(PII-redacting logs, per-caller rate limiting, non-blocking prompt-injection ingestion scan +
-LLM-caller delimiting, per-workspace crawl domain allowlist). Not deployed/live-verified; the
-governance admin UI and a few audit emit points are tracked follow-ups. Design and threat
-model: `context/design/phase19.md`.
+Phase 17 Azure Deployment is skipped. Phase 18 (Optional Vercel Frontend) is implemented and
+merged to `main` (PR #16): two Vercel projects (FastAPI API + Next.js frontend) with Vercel Blob,
+hosted Voyage embeddings/reranking, a new 1,024-dim Pinecone index, self-registration auth, and
+Vercel Workflow-orchestrated durable jobs — never live-deployed. Phase 19 (Enterprise Hardening)
+is implemented, code-reviewed, and merged to `main` (PR #17): 19a identity & access
+(organizations, memberships, roles `viewer<member<admin<owner`, invitations, centrally
+role-gated endpoints), 19b governance (hash-chained audit log with prune-aware `verify_chain`,
+retention policies + `rag-retention` purge CLI, source security labels with clearance-filtered
+retrieval), and 19c abuse & content safety (PII-redacting log filter, per-caller rate limiting,
+non-blocking prompt-injection ingestion scan on both the sync and durable-jobs paths + LLM-caller
+delimiting, per-workspace crawl domain allowlist). Not deployed/live-verified; the governance
+admin UI and session-reuse audit emission are tracked follow-ups. Design and threat model:
+`context/design/phase19.md`.
 Tracker sections are grouped by subsystem, so their section numbers do not map one-to-one to the
 phase numbers in `build-plan.md`. Production mode now requires the complete durable stack while
 the existing local adapters remain available for development, tests, and rollback.
 
-**Verification (rerun September 7, 2026, after the Phase 18 review fixes):** `ruff check .`
-passes; `ruff format --check .` reports 141 files already formatted; strict `mypy app` passes
-across 101 source files; `pytest -q` reports **`230 passed, 1 skipped`** in ~27 seconds. The
-skipped test is the opt-in live OpenAI graph integration test. `tests/test_phase18_jobs.py` now
-parametrizes the CSV/PDF durable-job case and exercises the retry/publish path; new tests cover
-the `vercel_blob`-in-production auth guardrail and nested-`workspace_id` rejection. Frontend
-`npm run typecheck` and `node --test` pass. `alembic upgrade --sql` renders migration `0002`
-cleanly with a single head. The API was run locally (`uvicorn app.main:app`, `OMP_NUM_THREADS=1`):
-14/14 route smoke checks pass and a CSV source was ingested and answered with a grounded row
-citation. These checks still do not exercise any live Vercel/Voyage/Blob/Workflow path.
+**Current verification (September 12, 2026, current working tree):** `ruff check .` passes;
+`ruff format --check .` reports 165 files already formatted; `mypy app` passes across 112 source
+files; `pytest -q` reports **260 passed, 1 skipped** in 37.22 seconds (opt-in live OpenAI graph
+test skipped); `alembic heads` reports the single head `20260908_0004`. Frontend
+`npm run typecheck --prefix frontend` and `npm test --prefix frontend` pass (3 tests).
+The local authenticated API and Next.js frontend were restarted successfully: frontend HTTP 200
+and API `/health` returned `{"status":"ok"}`. The launcher applied migrations against embedded
+PostgreSQL. This checks startup, not login, upload, Workflow execution, indexed-data recovery,
+or a production frontend build. Existing uncommitted implementation/demo changes are included
+in this working-tree verification; it is not a new merged-release claim.
 
-## Open Validation Work
+**Historical verification (September 9, 2026, on `main`; retained from prior review):** `ruff check .` passes; `ruff format --check .`
+reports 162 files already formatted; strict `mypy app` passes across 112 source files; `pytest -q`
+reports **`258 passed, 1 skipped`** in ~29 seconds (the skipped test is the opt-in live OpenAI
+graph integration test); `alembic heads` is a single head `20260908_0004`; frontend
+`npm run typecheck` and `node --test` (3 tests) pass. The `demo/` walkthrough
+(`scripts/seed_demo.py`) has been run end to end more than once, including from the Streamlit
+Chat tab against the live API: all six sources reach `ready` and PDF / website / CSV questions
+return grounded, correctly cited answers (graph + SQL need `OPENAI_API_KEY`).
+Two opt-in config flags were added for the demo and for internal-network use: `SQL_ALLOW_SQLITE`
+and `WEBSITE_ALLOWED_PRIVATE_HOSTS` (both empty/off by default). Phase 19 added
+`tests/test_phase19_orgs.py` (org/role/invitation/isolation + HTTP audit/retention/crawl-allowlist
++ login-audit), `tests/test_phase19_governance.py` (hash-chain tamper + prefix-prune, retention
+cascade, clearance filtering), and `tests/test_phase19_content_safety.py` (redaction, rate limiter,
+injection markers, domain allowlist). These checks still do not exercise any live
+Vercel/Voyage/Blob/Workflow/PostgreSQL/Neo4j path, nor live embedding/re-ranking quality.
 
-- [x] Local API native crash (exit code 139) while loading `BAAI/bge-small-en-v1.5`: resolved by
-  running with `OMP_NUM_THREADS=1`. On September 7, 2026 the API booted clean, loaded the
-  SentenceTransformer, ingested a CSV source end to end (status reached `ready` after a slow but
-  successful CPU embed/FAISS build on this x86_64 Mac), and answered a grounded query with a
-  correct `[S1]` CSV-row citation. 14/14 route smoke checks passed.
-- [ ] Re-run PDF and website ingestion plus a cited query through the Streamlit UI (build-plan
-  Phases 2–4 and 15 runtime acceptance). CSV ingestion + cited retrieval verified via the API.
-- [ ] Verify model-backed quality comparisons, including re-ranking improvement over fused-only
-  results (Phase 10). Deterministic fixtures and model doubles validate contracts and metrics;
-  they do not establish live cross-encoder quality.
-- [ ] Verify Phase 16 restart recovery using PostgreSQL, Azure Blob, Pinecone, and Neo4j together,
-  including indexed-data retrieval after restart. Current persistence tests use SQLite,
-  in-memory coordination, and simulated Blob storage; cloud provisioning is Phase 17 work.
-- [-] Deferred with skipped Phase 17: create Docker/deployment artifacts and configure Azure resources, Key Vault, monitoring,
-  and an end-to-end deployment smoke test (Phase 17). `docker/` and `scripts/` contain only placeholders.
-- [x] Fix the broken `tests/test_phase18_jobs.py` cases (CSV/PDF parametrize; graph-test source
-  lifecycle), restoring green `ruff check` and `pytest`. Done on `fix/phase18-review`.
-- [x] Phase 18 review follow-ups: require `AUTH_ENABLED` for `vercel_blob` in production; scan the
-  whole JSON body for `workspace_id` in `authorize`; restore optional (uncapped) pagination on
-  `GET /sources/{id}/documents`; rewrite migration `0002` as explicit `op.create_table`; bound the
-  authenticated evaluation-report listing; shorten the `step_job` transaction so no row lock is
-  held across provider calls; drop the `app/main.py` E402 import workaround.
-- [x] Runtime fixes found while running the app: `GET /jobs`, `/jobs/{id}`, resume, and cancel
-  returned HTTP 500 (constructing the metadata engine before the auth check) — now a clean 503
-  when auth is disabled; `/internal/*` returned 500 when auth is disabled — the workflow-secret
-  check now runs regardless of `AUTH_ENABLED` (clean 401); `GET /auth/me` returned 500 without a
-  session — now 401.
-- [ ] Provision the Phase 18 Vercel stack (two projects, private Blob, PostgreSQL `rag` schema,
-  new 1,024-dim Voyage Pinecone index, Neo4j, Voyage key, mail webhook) and run the
-  `docs/phase18-deployment.md` acceptance checklist: client isolation, session/refresh rotation,
-  direct Blob uploads >4.5 MB, retry idempotency, interrupted-job recovery, and retrieval after
-  restart/redeploy.
-- [ ] Run live Voyage embedding/reranking quality comparisons and calibrate similarity thresholds
-  (the BGE 0.70 cutoff is not a validated Voyage value); reindex against the new index.
-- [ ] Verify Vercel Workflow dispatch, concurrent job-step delivery against PostgreSQL (the step
-  fence now uses two short transactions rather than a lock held across provider calls), and
-  transactional mail delivery in a configured preview environment (offline tests use SQLite doubles).
+## Open Validation Work and Follow-ups
+
+These items distinguish local UI checks, live service/model acceptance, and unfinished
+implementation. Passing offline tests or local health checks does not complete cloud acceptance.
+
+- [~] **Streamlit runtime acceptance** — the demo dataset (2 PDFs, a crawled website, 2 CSVs, a
+  SQLite DB) has been ingested end to end via the API and queried from the Streamlit **Chat** tab
+  with correct citations. Still to do through the **UI itself**: the PDF / website / CSV upload
+  forms and the source inspector / retrieval-trace panels (build-plan Phase 15). The
+  exit-code-139 embedding crash is resolved by `OMP_NUM_THREADS=1`.
+- [ ] **Retrieval quality (Phase 10)** — verify re-ranking improvement over fused-only results
+  with real models; deterministic fixtures validate contracts and metrics, not live quality.
+- [ ] **Phase 16 restart recovery** — PostgreSQL + Azure/Vercel Blob + Pinecone + Neo4j together,
+  including indexed-data retrieval after a restart. Graph snapshots now have a real local
+  PostgreSQL reconnect smoke test; full-stack acceptance remains pending. Earlier persistence tests use SQLite, in-memory
+  coordination, and simulated Blob.
+- [ ] **Phase 18 Vercel stack** — provision two Vercel projects, private Blob, PostgreSQL `rag`
+  schema (including graph snapshots), a new 1,024-dim Voyage Pinecone index, Voyage key, and a mail webhook, then run
+  the `docs/phase18-deployment.md` acceptance checklist (client isolation, session/refresh
+  rotation, direct Blob uploads >4.5 MB, retry idempotency, interrupted-job recovery, retrieval
+  after restart/redeploy). Also verify Workflow dispatch, concurrent job-step delivery against
+  PostgreSQL, and transactional mail delivery.
+- [ ] **Voyage calibration** — live embedding/reranking quality comparison; calibrate similarity
+  thresholds (the BGE 0.70 cutoff is not a validated Voyage value); reindex against the new index.
+- [ ] **Phase 19 governance runtime** — with `AUTH_ENABLED` on PostgreSQL: exercise the
+  invitation → acceptance email flow, `rag-audit verify` and `rag-retention apply` against real
+  data (including an audit prefix-purge and a subsequent `verify` showing `pruned_through`),
+  clearance-filtered retrieval with two members at different clearances, and rate-limit behaviour
+  under concurrency.
+- [ ] **Additional implementation follow-ups** — token-budget management, provider token/cost
+  accounting, trace IDs, and user feedback remain unfinished in the subsystem checklists; these
+  are tracker extensions rather than explicit tasks in `build-plan.md`.
+- [ ] **Phase 19 follow-ups** — build the governance admin UI in the Next.js app (orgs / members /
+  audit / retention / labels / crawl allowlist); emit an audit event on refresh-token-reuse
+  detection.
+- [-] **Deferred with skipped Phase 17** — Docker/deployment artifacts, Azure resources, Key Vault,
+  monitoring, and an end-to-end deployment smoke test. `docker/` remains a placeholder; `scripts/` now contains working local launch, demo, and configuration-check tools.
+
+**Recently closed:** the local embedding crash (Sept 7); the Phase 18 review fixes and runtime
+500→503/401 fixes (Sept 7); the two Phase 19 code-review rounds — org-model isolation gaps, the
+audit `verify_chain`-vs-retention-purge contradiction, the durable-jobs content-safety gap, the
+PostgreSQL-unsafe `record_query`, and over-broad log redaction (Sept 8); the `demo/` dataset,
+`scripts/seed_demo.py`, `demo/GUIDE.md`, and the `SQL_ALLOW_SQLITE` / `WEBSITE_ALLOWED_PRIVATE_HOSTS`
+opt-in flags they need (Sept 8).
+
+**Housekeeping (Sept 9):** a real OpenAI key had been pasted into the working-tree copy of
+`.env.example` (never committed — `git log -S` finds it nowhere in history); reverted to the
+committed placeholder. The key still lives in the local `.env` (git-ignored). If that file was
+ever shared or pushed from another checkout, rotate the key at platform.openai.com.
 
 The phase table below tracks implementation completion. Subsystem exit-criteria summaries
 describe automated acceptance coverage, subject to the live-validation gaps above.
@@ -115,16 +175,16 @@ describe automated acceptance coverage, subject to the live-validation gaps abov
 | Phase 7 — Knowledge Graph Retrieval | [x] Complete |
 | Phase 8 — Optional BM25 / Lexical Retriever | [x] Complete |
 | Phase 9 — Fusion Layer | [x] Complete |
-| Phase 10 — Re-ranking | [x] Complete |
+| Phase 10 — Re-ranking | [x] Implemented; real-model relevance improvement pending |
 | Phase 11 — Structured Database Retrieval | [x] Complete |
 | Phase 12 — Query Router | [x] Complete |
 | Phase 13 — Advanced Citation Engine | [x] Complete |
 | Phase 14 — Evaluation Framework | [x] Complete |
-| Phase 15 — Streamlit Application | [x] Complete |
+| Phase 15 — Streamlit Application | [x] Implemented; remaining UI-form and inspection acceptance pending |
 | Phase 16 — Production Persistence | [x] Implemented; live stack restart verification pending |
 | Phase 17 — Azure Deployment | [-] Skipped by user; not implemented |
-| Phase 18 — Optional Vercel Frontend | [~] In progress — code across frontend/auth/hosted-models/jobs; offline suite green after review fixes; not deployed or cloud-verified |
-| Phase 19 — Enterprise Hardening | [x] Implemented + code-reviewed (branch `19a-identity-access`, offline suite green: 256 passed). 19a identity & access, 19b governance, 19c abuse/content safety. Review fixes applied: audit `verify_chain` anchors to the first surviving event so retention prefix-purge no longer breaks it; durable-jobs ingestion now runs the injection scan + crawl allowlist; `record_query` upserts (PostgreSQL-safe); redaction preserves UUIDs/hashes; HTTP tests added for the audit/retention/crawl-allowlist endpoints. Not deployed/live-verified; governance admin UI + session-reuse audit emit are tracked follow-ups. |
+| Phase 18 — Optional Vercel Frontend | [x] Implemented and merged to `main` (PR #16): Next.js frontend, same-origin JWT proxy, self-registration auth, private Vercel Blob adapter, hosted Voyage models, durable Workflow jobs. No live Vercel deployment or cloud verification. |
+| Phase 19 — Enterprise Hardening | [x] Implemented, code-reviewed (two rounds), and merged to `main` (PR #17): 19a identity & access, 19b governance, 19c abuse/content safety. Current working-tree offline suite green (260 passed, 1 skipped). Not deployed/live-verified; governance admin UI + session-reuse audit emission are tracked follow-ups. |
 
 ## Status Legend
 - [ ] Not started
@@ -293,10 +353,11 @@ and a committed six-case benchmark verifies improved hit rate and MRR with compl
 
 **Implementation status:** Complete
 
-**Exit criteria:** Complete — fused candidates can be re-ranked through a lazy Hugging Face
+**Exit criteria:** Deterministic benchmark coverage complete; real-model improvement pending — fused candidates can be re-ranked through a lazy Hugging Face
 cross-encoder, selected with a deterministic two-pass source-diversity policy, and returned with
 stable citations plus inspectable fusion, model-score, rank, and latency provenance. A committed
-eight-case graded benchmark improves MRR and NDCG over fused-only ordering.
+eight-case graded benchmark with deterministic fixtures improves MRR and NDCG over fused-only
+ordering; it does not establish improvement with real models.
 
 ## 13. Generation
 - [x] Grounded system prompt
@@ -358,7 +419,8 @@ question text, unavailable graph indexes safely fall back to default fusion, and
 
 **Implementation status:** Complete
 
-**Exit criteria:** Complete — the native Streamlit multipage shell exposes Chat, Sources,
+**Exit criteria:** Implementation and automated coverage complete; UI runtime acceptance partial —
+the native Streamlit multipage shell exposes Chat, Sources,
 Retrieval Lab, Evaluation, and Settings through one typed FastAPI client. The source manager lists,
 inspects, registers, and explicitly re-indexes supported sources; session-scoped retrieval
 experiments expose valid query controls without mutating backend defaults; and read-only,
@@ -415,8 +477,8 @@ Neo4j artifacts are immutable and become visible only after all required stores 
 coordinator atomically publishes the generation. A file-backed SQL restart test recreates the
 repository and confirms source and active-generation recovery, while coordinator tests prove
 partially prepared generations remain invisible. The production environment rejects every local
-backend; local data stays untouched for development and rollback. Live cloud provisioning and
-service-level smoke tests belong to Phase 17.
+backend; local data stays untouched for development and rollback. Azure deployment remains skipped with Phase 17; live cloud provisioning and
+service-level restart/retrieval checks remain required under the Phase 18 deployment track.
 
 ## 18. Observability
 - [ ] Trace IDs
@@ -432,12 +494,12 @@ service-level smoke tests belong to Phase 17.
 - [~] JWT/OIDC integration (Phase 18: self-registration, Argon2 password hashing, JWT access
   tokens, and one-use rotating refresh tokens implemented in `app/auth/`; gated behind
   `AUTH_ENABLED`; no external OIDC provider; not verified against live PostgreSQL)
-- [x] Organization / RBAC model (Phase 19a — branch `19a-identity-access`): `rag_organizations`
+- [x] Organization / RBAC model (Phase 19a, merged to `main` PR #17): `rag_organizations`
   + `rag_memberships` + `rag_invitations`; an organization owns one workspace; registration
   auto-creates a personal org (`owner`); roles `viewer` < `member` < `admin` < `owner` gate
   every mutation centrally in `authorize()`; `/orgs` router manages members and invitations;
   migration `20260908_0003` backfills personal orgs; `/auth/me` self-heals and lists orgs.
-  Not yet deployed/live-verified; Streamlit/Next.js admin UI deferred to 19c UI budget.
+  Not yet deployed/live-verified; governance admin UI is a Next.js follow-up.
 - [x] Source authorization (Phase 18 request-time workspace-ownership; Phase 19a: membership +
   role check with a single-workspace-per-request rule; Phase 19b: `Classification` label on each
   source + per-membership `clearance` gate `GET /sources`, inspection, and retrieval)
@@ -445,39 +507,48 @@ service-level smoke tests belong to Phase 17.
   visible-source-id set through every retriever and the auto router so above-clearance content
   never enters the candidate set)
 - [x] Audit logging (Phase 19b — `app/audit/`): append-only `rag_audit_events` with a per-org
-  hash chain, `AuditRepository` (append/read/verify/prefix-purge only), `record()` emit points
-  across org + membership + governance actions, `GET /audit/events|verify` (admin+), and the
-  `rag-audit verify` CLI. Auth-event / source-registration emission deferred to 19c.
+  hash chain; `verify_chain` anchors to the first surviving event so a retention prefix-purge
+  reports `pruned_through` instead of a false break; `record()` emit points across org,
+  membership, governance, source-classification, and (19c) `auth.login`/`auth.login_failed`
+  actions; `GET /audit/events|verify` (admin+); `rag-audit verify` CLI. Source-registration and
+  refresh-reuse emission are follow-ups.
 - [x] Retention policies (Phase 19b — `app/retention/`): per-workspace day windows for source
   data / audit events / query counters (default keep-forever), `rag-retention apply [--dry-run]`
   cascading purge with a 30-day audit floor and a `retention.purged` audit trail, `GET/PUT
   /retention` (admin+). Vector/graph generation GC deferred (immutable-generation design).
 - [x] File validation
-- [x] Crawl allowlist
 - [~] Secret management (environment-backed references implemented; Phase 18 adds `SecretStr`
   config for Blob, JWT, workflow, Voyage, and mail-webhook secrets with fail-closed validation;
   managed vault deferred)
 - [x] SQL read-only enforcement
 - [x] Prompt injection mitigation (Phase 19c): non-blocking `app/ingestion/injection_scan.py`
-  heuristic marks suspicious sources (`injection_flags`); OpenAI graph-extraction and NL→SQL
-  callers delimiter-wrap untrusted content, and structured-output + substring / AST validation
-  reject non-grounded output. No guard LLM.
+  heuristic marks suspicious sources (`injection_flags`) on both the sync and durable-jobs
+  ingestion paths; OpenAI graph-extraction and NL→SQL callers delimiter-wrap untrusted content,
+  and structured-output + substring / AST validation reject non-grounded output. No guard LLM.
 - [x] Rate limiting (Phase 19c — `app/core/rate_limit.py`): fixed-window per-user / per-IP
   counters (`rag_rate_limits`, in-memory fallback) on `/query`, ingestion, and `POST /jobs`;
   `RATE_LIMIT_*` settings; 429 + `Retry-After`.
 - [x] PII-aware logging (Phase 19c — `app/core/redaction.py`): root-handler `logging.Filter`
   masks bearer tokens, key/value secrets, e-mails, and long opaque strings in the message and
-  non-allowlisted extras.
-- [x] Crawl allowlist (Phase 19c): per-workspace `rag_retention_policies.crawl_allowlist`,
-  `GET/PUT /crawl-allowlist` (admin+), enforced on the seed host with subdomain matching; the
-  always-on SSRF / non-global-IP guard remains beneath it.
+  non-allowlisted extras; UUIDs and hex ids/hashes are exempted so operational logs stay useful.
+- [x] Website allowlist (Phase 19c): per-workspace `rag_retention_policies.crawl_allowlist`,
+  `GET/PUT /crawl-allowlist` (admin+), enforced on the seed host with subdomain matching on both
+  the sync and durable-jobs crawl paths; the always-on SSRF / non-global-IP guard remains beneath it.
 - [x] Email verification / password recovery (single-use, one-hour tokens via transactional mail
   webhook; required before public registration is allowed)
 
 ## 20. Local Deployment
 - [ ] Dockerfile
 - [ ] Docker Compose
-- [ ] Local PostgreSQL
+- [x] Local PostgreSQL — `scripts/local_auth_stack.py` starts persistent embedded PostgreSQL
+  in `.localdb/`, applies Alembic migrations, and launches the authenticated API; startup and
+  restart smoke-verified September 12, 2026.
+- [x] Local authenticated Next.js/API launch — frontend HTTP 200 on port 3000 and API
+  `/health` returns `{"status":"ok"}` on port 8000 after restart. Email verification is disabled
+  by the local launcher; account flows and indexed-data recovery were not tested in this check.
+- [x] Local FAISS durable-job adapter — embedding checkpoints are assembled into baseline and
+  sentence-window generations at publish time (`app/jobs/processing.py`); automated coverage
+  in `tests/test_phase18_jobs.py`. Live Blob/Workflow upload acceptance remains pending.
 - [ ] Local Neo4j option
 - [x] Health checks
 
@@ -496,9 +567,9 @@ service-level smoke tests belong to Phase 17.
 
 ## 22. Vercel Frontend — Optional (Build-plan Phase 18)
 
-**Status:** [~] In progress. Architecture approved September 7, 2026 (`context/design/phase18.md`);
-runbook in `docs/phase18-deployment.md`. Code review + fixes on branch `fix/phase18-review`
-(uncommitted); prior Phase 18 implementation is uncommitted on `main`.
+**Status:** [~] Implemented and merged to `main` (PR #16), code-reviewed; **not deployed**.
+Architecture: `context/design/phase18.md`; runbook: `docs/phase18-deployment.md`. The checklist
+below is complete for implementation; the remaining `[ ]` items all require a live Vercel stack.
 
 - [x] Approved architecture and deployment runbook
 - [x] Next.js UI (`frontend/`, Next 16 / React 19; `components/workspace.tsx` preserves Chat,
@@ -531,11 +602,14 @@ runbook in `docs/phase18-deployment.md`. Code review + fixes on branch `fix/phas
 
 ## 23. Portfolio Readiness
 - [x] Architecture diagram
-- [ ] Demo dataset
-- [ ] Demo script
+- [x] Demo dataset — `demo/` (fictional "Meridian Robotics": 2 PDFs, a crawled internal website,
+  2 CSVs, a read-only SQLite database) authored to exercise every retrieval strategy
+- [x] Demo script — `demo/GUIDE.md` (walkthrough + per-strategy question bank) and
+  `scripts/seed_demo.py` (one command: build assets, serve the site, launch the API, ingest all
+  six sources). Verified end-to-end locally; graph + SQL retrieval need `OPENAI_API_KEY`.
 - [ ] Screenshot set
 - [ ] Recorded walkthrough
-- [x] README
+- [x] README (includes a "Try the demo" section)
 - [ ] Resume project bullets
 - [ ] Interview explanation
 
@@ -573,7 +647,10 @@ Azure persistence and deployment, optionally Vercel frontend.
 Status: [~]
 
 Phase 16 durable persistence is implemented (PostgreSQL + Blob + Pinecone + Neo4j) with local
-regression coverage. Phase 17 Azure deployment is skipped by user instruction. Phase 18 pivots
-deployment to Vercel (Next.js frontend + FastAPI API, private Vercel Blob, hosted Voyage models,
-self-registration auth, Workflow-orchestrated durable jobs); the code exists but is uncommitted,
-has failing durable-job tests, and has not been deployed or verified against live cloud services.
+regression coverage. Phase 17 Azure deployment is skipped by user instruction. Phase 18 (Vercel:
+Next.js frontend + FastAPI API, private Vercel Blob, hosted Voyage models, self-registration auth,
+Workflow-orchestrated durable jobs) and Phase 19 (enterprise hardening: orgs/RBAC, hash-chained
+audit, retention, security labels, rate limiting, injection scan, crawl allowlist, PII-redacting
+logs) are implemented, code-reviewed, and merged to `main` with the full offline suite green.
+The milestone stays `[~]` because no live cloud stack has been provisioned and none of the
+deployment / restart-recovery acceptance checks have been run — see **Open Validation Work and Follow-ups**.

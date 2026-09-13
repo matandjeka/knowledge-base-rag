@@ -28,6 +28,19 @@ def test_settings_have_safe_local_defaults() -> None:
     assert settings.reranker_device == "auto"
     assert settings.reranking_candidate_pool_size == 30
     assert settings.reranking_max_per_source == 2
+    # SQLite sources and private-host crawling are opt-in.
+    assert settings.sql_allow_sqlite is False
+    assert settings.website_allowed_private_hosts == []
+
+
+def test_demo_flags_parse_from_environment() -> None:
+    settings = Settings(
+        _env_file=None,
+        sql_allow_sqlite=True,
+        website_allowed_private_hosts=["127.0.0.1", "localhost"],
+    )
+    assert settings.sql_allow_sqlite is True
+    assert "127.0.0.1" in settings.website_allowed_private_hosts
 
 
 def test_settings_require_at_least_one_positive_fusion_weight() -> None:

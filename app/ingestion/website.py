@@ -73,6 +73,7 @@ class SafeHttpFetcher:
         max_redirects: int,
         resolver: Callable[[str, int], Awaitable[tuple[str, ...]]] | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
+        allowed_private_hosts: frozenset[str] = frozenset(),
     ) -> None:
         self._user_agent = user_agent
         self._timeout = timeout_seconds
@@ -80,18 +81,23 @@ class SafeHttpFetcher:
         self._max_redirects = max_redirects
         self._resolver = resolver or resolve_host
         self._transport = transport
+        self._allowed_private_hosts = allowed_private_hosts
 
     async def fetch(self, url: str, accepted_content_types: frozenset[str]) -> FetchedResponse:
         """Fetch one public URL without inheriting proxies from the process environment."""
         current = normalize_url(url)
         for redirect_count in range(self._max_redirects + 1):
-            addresses = await resolve_public_addresses(current, self._resolver)
+            addresses = await resolve_public_addresses(
+                current, self._resolver, allowed_private_hosts=self._allowed_private_hosts
+            )
             last_connection_error: httpx.HTTPError | None = None
             redirect_target: str | None = None
             for address in addresses:
                 try:
                     split = urlsplit(current)
                     address_authority = f"[{address}]" if ":" in address else address
+                    if split.port:
+                        address_authority = f"{address_authority}:{split.port}"
                     connection_url = urlunsplit(
                         (split.scheme, address_authority, split.path, split.query, "")
                     )
@@ -311,8 +317,15 @@ class WebsiteCrawler:
         return parser
 
 
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
 def normalize_url(value: str) -> str:
-    """Return a fragment-free, absolute HTTP(S) URL with normalized authority."""
+    """Return a fragment-free, absolute HTTP(S) URL with normalized authority.
+
+    Non-standard ports are rejected except on loopback hosts, where they are preserved so a
+    locally served site (demo, tests) can be crawled.
+    """
     try:
         split = urlsplit(value.strip())
         port = split.port
@@ -324,11 +337,14 @@ def normalize_url(value: str) -> str:
         raise WebsiteValidationError("The URL must include a hostname")
     if split.username or split.password:
         raise WebsiteValidationError("URLs containing credentials are not supported")
-    expected_port = 80 if split.scheme.lower() == "http" else 443
-    if port not in {None, expected_port}:
-        raise WebsiteValidationError("Only standard HTTP and HTTPS ports are supported")
     host = split.hostname.lower().rstrip(".")
+    expected_port = 80 if split.scheme.lower() == "http" else 443
+    keep_port = port not in {None, expected_port}
+    if keep_port and host not in _LOOPBACK_HOSTS:
+        raise WebsiteValidationError("Only standard HTTP and HTTPS ports are supported")
     netloc = f"[{host}]" if ":" in host else host
+    if keep_port:
+        netloc = f"{netloc}:{port}"
     path = split.path or "/"
     normalized = SplitResult(split.scheme.lower(), netloc, path, split.query, "")
     return urlunsplit(normalized)
@@ -371,9 +387,16 @@ async def validate_public_url(
 
 
 async def resolve_public_addresses(
-    url: str, resolver: Callable[[str, int], Awaitable[tuple[str, ...]]]
+    url: str,
+    resolver: Callable[[str, int], Awaitable[tuple[str, ...]]],
+    *,
+    allowed_private_hosts: frozenset[str] = frozenset(),
 ) -> tuple[str, ...]:
-    """Return public addresses approved for a URL's outbound connection."""
+    """Return the addresses approved for a URL's outbound connection.
+
+    Non-global addresses are rejected unless the URL's hostname is explicitly listed in
+    ``allowed_private_hosts`` (used for local-site demos and internal-network deployments).
+    """
     normalized = normalize_url(url)
     split = urlsplit(normalized)
     host = split.hostname or ""
@@ -385,6 +408,8 @@ async def resolve_public_addresses(
         addresses = await resolver(host, port)
     if not addresses:
         raise WebsiteValidationError(f"Could not resolve host: {host}")
+    if host in allowed_private_hosts:
+        return addresses
     for address in addresses:
         if not ipaddress.ip_address(address).is_global:
             raise WebsiteValidationError("Website resolves to a non-public network address")

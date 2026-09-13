@@ -377,7 +377,10 @@ def retrieval_lab_page() -> None:
             for value in st.multiselect("Fusion retrievers", choices, default=choices[:3])
         ]
         strategy = st.selectbox("Fusion strategy", ["rrf", "weighted_rrf"])
-        rerank = st.checkbox("Re-rank fused candidates")
+        if settings.reranking_available:
+            rerank = st.checkbox("Re-rank fused candidates")
+        else:
+            st.caption("Results use fusion ranking; additional re-ranking is unavailable.")
     question = st.text_area("Question", max_chars=4000)
     selected_sources = [options[label] for label in selected]
     invalid_sql = mode is RetrievalMode.SQL and not valid_sql_selection(selected_sources)

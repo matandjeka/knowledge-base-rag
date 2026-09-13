@@ -20,8 +20,10 @@ from app.generation.extractive import ExtractiveGenerator
 from app.graph.indexing import GraphIndexingService
 from app.graph.neo4j_store import Neo4jGraphStore
 from app.graph.openai_extractor import OpenAIGraphExtractor
+from app.graph.postgres_store import PostgresGraphStore
 from app.graph.retrieval import GraphRetriever
 from app.graph.store import GraphStore, LocalGraphStore
+from app.hosted.openai import OpenAIEmbeddingService
 from app.hosted.voyage import VoyageClient, VoyageEmbeddingService, VoyageReranker
 from app.ingestion.csv import CsvConnector
 from app.ingestion.csv_service import CsvIngestionService
@@ -140,8 +142,16 @@ def require_blob_storage() -> VercelBlobSourceStorage:
 
 @lru_cache
 def get_embedding_service() -> EmbeddingService:
-    """Return the cached local Hugging Face embedding adapter."""
+    """Return the configured embedding adapter."""
     settings = get_settings()
+    if settings.embedding_provider == "openai":
+        assert settings.openai_api_key is not None
+        return OpenAIEmbeddingService(
+            settings.openai_api_key.get_secret_value(),
+            model_name=settings.openai_embedding_model,
+            dimension=settings.embedding_dimension,
+            batch_size=settings.embedding_batch_size,
+        )
     if settings.embedding_provider == "voyage":
         assert settings.voyage_api_key is not None
         return VoyageEmbeddingService(
@@ -191,6 +201,8 @@ def get_vector_store() -> FaissVectorStore | PineconeVectorStore:
 def get_graph_store() -> GraphStore:
     """Return the configured graph store."""
     settings = get_settings()
+    if settings.graph_store_backend == "postgresql":
+        return PostgresGraphStore(get_metadata_engine(), get_persistence_repository())
     if settings.graph_store_backend == "neo4j":
         if (
             settings.neo4j_uri is None
@@ -266,9 +278,11 @@ def get_graph_indexing_service() -> GraphIndexingService:
 
 
 @lru_cache
-def get_reranking_service() -> RerankingService:
-    """Return the lazy local cross-encoder re-ranking service."""
+def get_reranking_service() -> RerankingService | None:
+    """Return the configured reranking service, or None when disabled."""
     settings = get_settings()
+    if settings.reranker_provider == "none":
+        return None
     if settings.reranker_provider == "voyage":
         assert settings.voyage_api_key is not None
         return RerankingService(
@@ -301,7 +315,11 @@ def get_database_connection_manager() -> DatabaseConnectionManager:
 @lru_cache
 def get_database_registration_service() -> DatabaseRegistrationService:
     """Return database source registration orchestration."""
-    return DatabaseRegistrationService(get_source_repository(), get_database_connection_manager())
+    return DatabaseRegistrationService(
+        get_source_repository(),
+        get_database_connection_manager(),
+        allow_sqlite=get_settings().sql_allow_sqlite,
+    )
 
 
 def _database_retriever() -> DatabaseRetriever | None:
@@ -318,6 +336,7 @@ def _database_retriever() -> DatabaseRetriever | None:
             max_retries=settings.sql_generation_max_retries,
         ),
         SqlValidator(max_rows=settings.sql_max_rows),
+        allow_sqlite=settings.sql_allow_sqlite,
     )
 
 
@@ -380,6 +399,7 @@ def get_website_ingestion_service() -> WebsiteIngestionService:
         timeout_seconds=settings.website_request_timeout_seconds,
         max_response_bytes=settings.website_max_response_bytes,
         max_redirects=settings.website_max_redirects,
+        allowed_private_hosts=frozenset(settings.website_allowed_private_hosts),
     )
     crawler = WebsiteCrawler(
         fetcher,
