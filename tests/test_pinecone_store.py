@@ -14,6 +14,7 @@ from numpy.typing import NDArray
 from app.core.config import Settings
 from app.core.exceptions import IndexingError, IndexNotFoundError
 from app.models import NormalizedDocument, SourceType
+from app.persistence import GenerationKind, InMemoryPersistenceRepository
 from app.retrieval.pinecone_store import PineconeIndex, PineconeVectorStore
 from app.retrieval.vector_store import VectorIndexKind, VectorIndexPayload
 
@@ -112,7 +113,12 @@ def _document(source_id: UUID, content: str) -> NormalizedDocument:
     )
 
 
-def _store(index: MemoryPineconeIndex, *, batch_size: int = 2) -> PineconeVectorStore:
+def _store(
+    index: MemoryPineconeIndex,
+    *,
+    batch_size: int = 2,
+    generation_repository: Any = None,
+) -> PineconeVectorStore:
     async def describe() -> dict[str, object]:
         return {
             "dimension": 3,
@@ -131,6 +137,7 @@ def _store(index: MemoryPineconeIndex, *, batch_size: int = 2) -> PineconeVector
         consistency_delay_seconds=0,
         index_factory=lambda: IndexContext(index),
         index_descriptor=describe,
+        generation_repository=generation_repository,
     )
 
 
@@ -167,6 +174,38 @@ async def test_prepare_batches_records_and_requires_activation() -> None:
     assert {match.document.document_id for match in matches} == {
         document.document_id for document in documents
     }
+
+
+@pytest.mark.asyncio
+async def test_search_uses_postgres_generation_repository_not_pinecone_control_record() -> None:
+    """When PostgreSQL coordinates activation, search must not depend on the Pinecone
+    control record: activate() deliberately never writes it in that mode (Postgres is
+    authoritative), so a search that looked it up directly would always fail even after
+    a real, successful publish."""
+    index = MemoryPineconeIndex()
+    repository = InMemoryPersistenceRepository()
+    store = _store(index, generation_repository=repository)
+    documents = [_document(uuid4(), "content")]
+    vectors = np.asarray([[1.0, 0.0, 0.0]], dtype=np.float32)
+
+    metadata = await store.prepare("workspace", documents, vectors, model_name="fixed", dimension=3)
+    operation = await repository.begin_operation(
+        "workspace", metadata.generation_id, GenerationKind.RETRIEVAL
+    )
+    await repository.mark_prepared(operation.operation_id, "vector")
+    await repository.publish(operation.operation_id, frozenset({"vector"}))
+    await store.activate("workspace", metadata.generation_id)
+
+    matches = await store.search(
+        "workspace",
+        vectors[0],
+        top_k=3,
+        source_ids=frozenset(),
+        model_name="fixed",
+        dimension=3,
+    )
+
+    assert {match.document.document_id for match in matches} == {documents[0].document_id}
 
 
 @pytest.mark.asyncio

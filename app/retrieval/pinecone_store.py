@@ -303,9 +303,9 @@ class PineconeVectorStore:
         await self._ensure_compatible(dimension)
         if query.shape != (dimension,) or not np.isfinite(query).all():
             raise IndexingError("Query embedding is invalid for the vector index")
+        generation = await self.active_generation(workspace_id)
         try:
             async with self._index_factory() as index:
-                generation = await self._active_generation(index, workspace_id, required=True)
                 metadata_filter: dict[str, Any] = {
                     "record_type": {"$eq": _DOCUMENT_KIND},
                     "generation_id": {"$eq": str(generation)},
