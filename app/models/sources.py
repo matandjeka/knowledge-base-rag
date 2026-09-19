@@ -12,6 +12,7 @@ class SourceType(StrEnum):
     """Supported enterprise knowledge-source categories."""
 
     PDF = "pdf"
+    DOCX = "docx"
     WEBSITE = "website"
     CSV = "csv"
     DATABASE = "database"

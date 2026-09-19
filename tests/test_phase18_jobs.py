@@ -70,7 +70,7 @@ async def test_step_retries_rollback_and_duplicate_delivery_is_noop(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("kind", ["csv", "pdf"])
+@pytest.mark.parametrize("kind", ["csv", "pdf", "docx"])
 @pytest.mark.parametrize("backend", ["pinecone", "faiss"])
 async def test_csv_job_indexes_both_representations_and_publishes_after_retry(
     repository: JobRepository,
@@ -138,6 +138,13 @@ async def test_csv_job_indexes_both_representations_and_publishes_after_retry(
     blobs.values[path] = (
         b"id,text\n1,Policy requires annual review.\n2,Keep records for seven years.\n"
     )
+    if kind == "docx":
+        from tests.test_docx_ingestion import docx_bytes
+
+        blobs.values[path] = docx_bytes(
+            "<w:p><w:r><w:t>Policy requires annual review. "
+            "Keep records for seven years.</w:t></w:r></w:p>"
+        )
     if kind == "pdf":
         import pymupdf
 
@@ -188,6 +195,9 @@ async def test_csv_job_indexes_both_representations_and_publishes_after_retry(
     documents = await object_store.load_documents("client", source.source_id)
     if kind == "csv":
         assert [document.row_id for document in documents] == ["1", "2"]
+    elif kind == "docx":
+        assert documents[0].row_id == "1"
+        assert documents[0].page_number is None
     else:
         assert documents[0].page_number == 1
     assert (await step_job(job_id, 0))["status"] == "complete"

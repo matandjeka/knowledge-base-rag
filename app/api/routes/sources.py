@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict
 from app.api.dependencies import (
     get_csv_ingestion_service,
     get_database_registration_service,
+    get_docx_ingestion_service,
     get_pdf_ingestion_service,
     get_source_repository,
     get_source_storage,
@@ -30,6 +31,7 @@ from app.core.exceptions import (
     CsvValidationError,
     DatabaseConfigurationError,
     DatabaseExecutionError,
+    DocxValidationError,
     IndexingError,
     IngestionError,
     PdfValidationError,
@@ -39,6 +41,7 @@ from app.core.exceptions import (
 from app.core.rate_limit import rate_limit
 from app.database import DatabaseRegistrationService
 from app.ingestion.csv_service import CsvIngestionService
+from app.ingestion.docx_service import DocxIngestionService
 from app.ingestion.service import PdfIngestionService
 from app.ingestion.website_service import WebsiteIngestionService
 from app.models import (
@@ -47,6 +50,7 @@ from app.models import (
     CsvPreviewResult,
     DatabaseSourceRequest,
     DatabaseSourceResult,
+    DocxIngestionResult,
     NormalizedDocument,
     PdfIngestionResult,
     Source,
@@ -120,6 +124,38 @@ async def upload_pdf(
             data=data,
         )
     except PdfValidationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
+        ) from error
+    except IngestionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(error)
+        ) from error
+
+
+@router.post(
+    "/docx",
+    response_model=DocxIngestionResult,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[_ingest_limit],
+)
+async def upload_docx(
+    workspace_id: WorkspaceForm,
+    file: Annotated[UploadFile, File(description="DOCX knowledge source")],
+    service: Annotated[DocxIngestionService, Depends(get_docx_ingestion_service)],
+) -> DocxIngestionResult:
+    """Validate, store, parse, chunk, and register one DOCX."""
+    settings = get_settings()
+    data = await file.read(settings.max_docx_size_bytes + 1)
+    await file.close()
+    try:
+        return await service.ingest(
+            workspace_id=workspace_id,
+            filename=file.filename or "",
+            content_type=file.content_type,
+            data=data,
+        )
+    except DocxValidationError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error)
         ) from error

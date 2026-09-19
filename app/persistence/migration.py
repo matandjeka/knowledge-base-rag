@@ -160,7 +160,7 @@ class LocalPersistenceMigrator:
                 continue
             await self._copy_source_record(source)
             directory = self._root / "workspaces" / workspace_id / "sources" / str(source.source_id)
-            for filename in ("original.pdf", "original.csv"):
+            for filename in ("original.pdf", "original.csv", "original.docx"):
                 path = directory / filename
                 if path.is_file():
                     locator = await self._storage.save_original(

@@ -16,6 +16,8 @@ async function proxy(request: Request, context: {params: Promise<{path: string[]
       signal: AbortSignal.timeout(240_000),
     });
     const returned = new Headers({"Content-Type": response.headers.get("content-type") || "application/json", "Cache-Control": "no-store"});
+    const retryAfter = response.headers.get("retry-after");
+    if (retryAfter) returned.set("Retry-After", retryAfter);
     for (const value of response.headers.getSetCookie())
       returned.append("Set-Cookie", value.replace("Path=/api/auth", "Path=/api/backend/auth"));
     return new Response(response.body, {status: response.status, headers: returned});

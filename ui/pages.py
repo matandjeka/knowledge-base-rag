@@ -103,7 +103,7 @@ def chat_page() -> None:
         st.error(str(error))
         return
     if not options:
-        st.info("Add a ready PDF, CSV, website, or database source to begin.")
+        st.info("Add a ready PDF, DOCX, CSV, website, or database source to begin.")
         st.chat_input("No ready sources", disabled=True)
         return
     selected = st.multiselect("Sources", options, default=list(options), key="chat_sources")
@@ -138,9 +138,12 @@ def sources_page() -> None:
     with inventory:
         _inventory()
     with add:
-        kind = st.radio("Source type", ["PDF", "Website", "CSV", "PostgreSQL"], horizontal=True)
+        kind = st.radio(
+            "Source type", ["PDF", "DOCX", "Website", "CSV", "PostgreSQL"], horizontal=True
+        )
         {
             "PDF": _pdf_form,
+            "DOCX": _docx_form,
             "Website": _website_form,
             "CSV": _csv_form,
             "PostgreSQL": _database_form,
@@ -217,6 +220,18 @@ def _pdf_form() -> None:
         assert upload is not None
         try:
             result = _client().add_pdf(WORKSPACE_ID, upload.name, upload.getvalue())
+            _invalidate_sources()
+            st.success(f"Added {result.source.name} with {result.chunk_count} chunk(s)")
+        except ApiError as error:
+            st.error(str(error))
+
+
+def _docx_form() -> None:
+    upload = st.file_uploader("DOCX file", type=["docx"], key="source_docx")
+    if st.button("Add DOCX", type="primary", use_container_width=True, disabled=upload is None):
+        assert upload is not None
+        try:
+            result = _client().add_docx(WORKSPACE_ID, upload.name, upload.getvalue())
             _invalidate_sources()
             st.success(f"Added {result.source.name} with {result.chunk_count} chunk(s)")
         except ApiError as error:

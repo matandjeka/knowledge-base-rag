@@ -18,6 +18,22 @@ export async function restore(): Promise<Session> {
   })().finally(() => {refreshing = undefined;});
   return refreshing;
 }
+export class ApiError extends Error {
+  status: number;
+  retryAfter?: number;
+  constructor(message: string, status: number, retryAfter?: number) { super(message); this.status = status; this.retryAfter = retryAfter; }
+}
+function describe(detail: unknown): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const issues = detail.filter((i): i is {msg: string; loc?: unknown[]} => typeof i?.msg === "string").slice(0, 2).map(i => {
+      const field = Array.isArray(i.loc) ? i.loc.filter(p => p !== "body").join(".") : "";
+      return field ? `${field}: ${i.msg}` : i.msg;
+    });
+    if (issues.length) return issues.join("; ");
+  }
+  return "Please check the form and try again.";
+}
 export async function api<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
   const headers = new Headers(options.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -30,7 +46,10 @@ export async function api<T>(path: string, options: RequestInit = {}, retry = tr
   const text = await response.text();
   if (text) { try { body = JSON.parse(text); } catch { body = undefined; } }
   const detail = (body as {detail?: unknown})?.detail;
-  if (!response.ok) throw new Error(typeof detail === "string" ? detail : "Please check the form and try again.");
+  if (!response.ok) {
+    const retryAfter = Number(response.headers.get("Retry-After"));
+    throw new ApiError(describe(detail), response.status, Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined);
+  }
   return body as T;
 }
 export function post<T>(path: string, body: unknown): Promise<T> {

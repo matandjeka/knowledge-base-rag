@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     if (!response.ok) return Response.json({error: "Access denied"}, {status: 403});
     const sources = await response.json() as {source_id: string; config: {source_type: string}}[];
     const source = sources.find(s => s.source_id === sourceId);
-    if (!source || !["pdf", "csv"].includes(source.config.source_type)) return Response.json({error: "Source not found"}, {status: 404});
+    if (!source || !["pdf", "docx", "csv"].includes(source.config.source_type)) return Response.json({error: "Source not found"}, {status: 404});
     const pathname = `workspaces/${user.workspace_id}/sources/${sourceId}/original.${source.config.source_type}`;
     const validUntil = Date.now() + 60_000;
     const token = await issueSignedToken({pathname, operations: ["get"], validUntil});

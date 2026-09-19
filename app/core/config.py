@@ -67,6 +67,7 @@ class Settings(BaseSettings):
     neo4j_username: str | None = Field(default=None, min_length=1)
     neo4j_password: SecretStr | None = None
     neo4j_database: str = Field(default="neo4j", min_length=1, max_length=63)
+    max_docx_size_bytes: int = Field(default=25 * 1024 * 1024, gt=0)
     max_pdf_size_bytes: int = Field(default=25 * 1024 * 1024, gt=0)
     pdf_chunk_size: int = Field(default=1200, ge=100)
     pdf_chunk_overlap: int = Field(default=200, ge=0)

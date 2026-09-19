@@ -14,6 +14,7 @@ from app.models import (
     CsvPreviewResult,
     DatabaseSourceRequest,
     DatabaseSourceResult,
+    DocxIngestionResult,
     NormalizedDocument,
     PdfIngestionResult,
     QueryRequest,
@@ -148,6 +149,23 @@ class RagApiClient:
                 "/sources/pdf",
                 data={"workspace_id": workspace_id},
                 files={"file": (filename, data, "application/pdf")},
+            ),
+        )
+
+    def add_docx(self, workspace_id: str, filename: str, data: bytes) -> DocxIngestionResult:
+        return self._model(
+            DocxIngestionResult,
+            self._request(
+                "POST",
+                "/sources/docx",
+                data={"workspace_id": workspace_id},
+                files={
+                    "file": (
+                        filename,
+                        data,
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    )
+                },
             ),
         )
 
