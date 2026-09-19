@@ -325,3 +325,15 @@ embeddings (1,024 dimensions), with `RERANKER_PROVIDER=none`. Fusion combines re
 dedicated reranking is unavailable in this profile. Set `OPENAI_API_KEY` and rebuild existing
 vector indexes when switching from BGE or Voyage. The offline local Hugging Face profile and
 legacy Voyage adapters remain available through explicit configuration.
+
+## DOCX sources
+
+Choose **DOCX** in Add a source, or upload a multipart file to `POST /sources/docx`
+with `workspace_id` and `file`. Authenticated workflow uploads also support `kind: "docx"`.
+The loader extracts body paragraphs and table-cell paragraphs in document order, chunks
+text, and preserves the original for download. Citations use paragraph positions, including
+blank paragraphs, rather than layout-dependent page numbers. Headers, footers, comments,
+images/OCR, and legacy `.doc` files are not extracted.
+
+`MAX_DOCX_SIZE_BYTES` defaults to 25 MB. Expanded archives are limited to 100 MB,
+and individual XML parts to 20 MB. DOCX uses the existing PDF chunk-size and overlap settings.

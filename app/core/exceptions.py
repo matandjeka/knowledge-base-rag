@@ -9,6 +9,10 @@ class IngestionError(ApplicationError):
     """Raised when loading source material fails."""
 
 
+class DocxValidationError(IngestionError):
+    """Raised when an uploaded DOCX is invalid or has no readable text."""
+
+
 class PdfValidationError(IngestionError):
     """Raised when an uploaded file is not an acceptable, extractable PDF."""
 

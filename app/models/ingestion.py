@@ -17,6 +17,16 @@ class PdfIngestionResult(BaseModel):
     chunk_count: int = Field(ge=1)
 
 
+class DocxIngestionResult(BaseModel):
+    """Summary of a completed DOCX ingestion operation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: Source
+    paragraph_count: int = Field(ge=1)
+    chunk_count: int = Field(ge=1)
+
+
 class WebsiteIngestionRequest(BaseModel):
     """User-controlled options for a bounded website crawl."""
 

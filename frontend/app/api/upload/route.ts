@@ -8,9 +8,9 @@ export async function POST(request: Request) {
       onBeforeGenerateToken: async (pathname) => {
         const user = await identity(request);
         const uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
-        const pattern = new RegExp(`^workspaces/${user.workspace_id}/uploads/${uuid}/${uuid}\\.(pdf|csv)$`, "i");
+        const pattern = new RegExp(`^workspaces/${user.workspace_id}/uploads/${uuid}/${uuid}\\.(pdf|docx|csv)$`, "i");
         if (!pattern.test(pathname)) throw new Error("Invalid upload path");
-        return {allowedContentTypes: ["application/pdf", "text/csv", "application/vnd.ms-excel"],
+        return {allowedContentTypes: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/pdf", "text/csv", "application/vnd.ms-excel"],
           maximumSizeInBytes: 25 * 1024 * 1024, addRandomSuffix: false,
           tokenPayload: JSON.stringify({workspace_id: user.workspace_id}),
         };

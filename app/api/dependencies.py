@@ -28,6 +28,8 @@ from app.hosted.openai import OpenAIEmbeddingService
 from app.hosted.voyage import VoyageClient, VoyageEmbeddingService, VoyageReranker
 from app.ingestion.csv import CsvConnector
 from app.ingestion.csv_service import CsvIngestionService
+from app.ingestion.docx import DocxConnector
+from app.ingestion.docx_service import DocxIngestionService
 from app.ingestion.pdf import PdfConnector
 from app.ingestion.service import PdfIngestionService
 from app.ingestion.website import SafeHttpFetcher, WebsiteCrawler
@@ -388,6 +390,20 @@ def get_pdf_ingestion_service() -> PdfIngestionService:
         repository=get_source_repository(),
         storage=get_source_storage(),
         connector=PdfConnector(settings.max_pdf_size_bytes),
+        chunk_size=settings.pdf_chunk_size,
+        chunk_overlap=settings.pdf_chunk_overlap,
+        indexer=get_vector_indexing_service(),
+    )
+
+
+@lru_cache
+def get_docx_ingestion_service() -> DocxIngestionService:
+    """Return the configured DOCX ingestion orchestrator."""
+    settings = get_settings()
+    return DocxIngestionService(
+        repository=get_source_repository(),
+        storage=get_source_storage(),
+        connector=DocxConnector(settings.max_docx_size_bytes),
         chunk_size=settings.pdf_chunk_size,
         chunk_overlap=settings.pdf_chunk_overlap,
         indexer=get_vector_indexing_service(),

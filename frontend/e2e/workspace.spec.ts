@@ -36,3 +36,29 @@ test("all workspace pages and cited answers render",async({page})=>{
     await expect(page.getByRole("heading",{name,exact:true})).toBeVisible();
   }
 });
+
+test("graph build reconciles a lost response and prevents duplicate builds",async({page})=>{
+  let job: Record<string,unknown>|undefined;
+  await page.route("**/api/backend/**",async route=>{
+    const path=new URL(route.request().url()).pathname;
+    if(path.endsWith("auth/refresh"))return route.fulfill({json:{access_token:"test-token",user}});
+    if(path.endsWith("settings"))return route.fulfill({json:{}});
+    if(path.endsWith("sources"))return route.fulfill({json:[{source_id:"source-1",name:"Policy",status:"ready",config:{source_type:"pdf",options:{}}}]});
+    if(path.endsWith("jobs")){
+      if(route.request().method()==="POST"){
+        job={id:route.request().postDataJSON().id,status:"running",stage:"graph_extract",processed:2,total:5,error:null};
+        return route.fulfill({status:503,json:{detail:"The service is unavailable. Please try again."}});
+      }
+      return route.fulfill({json:job?[job]:[]});
+    }
+    return route.fulfill({status:404,json:{detail:"Not found"}});
+  });
+  await page.goto("http://localhost:3000");
+  await page.getByRole("button",{name:"Sources",exact:true}).click();
+  const build=page.getByRole("button",{name:"Build knowledge graph",exact:true});
+  await expect(build).toBeEnabled();
+  await build.click();
+  await expect(page.getByText("2 / 5 batches",{exact:true})).toBeVisible();
+  await expect(build).toBeDisabled();
+  await expect(page.getByText("The service is unavailable. Please try again.",{exact:true})).toHaveCount(0);
+});

@@ -17,6 +17,14 @@ class PdfCitationLocator(BaseModel):
     page_number: int = Field(ge=1)
 
 
+class DocxCitationLocator(BaseModel):
+    """Paragraph position in document order, including table paragraphs."""
+
+    model_config = ConfigDict(extra="forbid")
+    source_type: Literal[SourceType.DOCX] = SourceType.DOCX
+    paragraph_number: int = Field(ge=1)
+
+
 class WebsiteCitationLocator(BaseModel):
     """Original web page supporting a citation."""
 
@@ -47,7 +55,11 @@ class DatabaseCitationLocator(BaseModel):
 
 
 CitationLocator = Annotated[
-    PdfCitationLocator | WebsiteCitationLocator | CsvCitationLocator | DatabaseCitationLocator,
+    DocxCitationLocator
+    | PdfCitationLocator
+    | WebsiteCitationLocator
+    | CsvCitationLocator
+    | DatabaseCitationLocator,
     Field(discriminator="source_type"),
 ]
 CitationId = Annotated[str, StringConstraints(pattern=r"^S[1-9][0-9]*$")]

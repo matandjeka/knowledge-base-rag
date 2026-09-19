@@ -342,6 +342,8 @@ def _corpus_evidence(case: GoldenCase, expected: ExpectedEvidence, source_id: UU
     locator: dict[str, Any] = {}
     if expected.source_type is SourceType.PDF:
         locator["page_number"] = int(expected.locator.removeprefix("page "))
+    elif expected.source_type is SourceType.DOCX:
+        locator["row_id"] = expected.locator.removeprefix("paragraph ")
     elif expected.source_type is SourceType.WEBSITE:
         locator["source_uri"] = expected.locator
     elif expected.source_type is SourceType.CSV:

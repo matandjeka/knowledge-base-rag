@@ -20,7 +20,7 @@ router = APIRouter(tags=["jobs"])
 class JobRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: UUID
-    kind: Literal["pdf", "csv", "website", "reindex", "graph"]
+    kind: Literal["pdf", "docx", "csv", "website", "reindex", "graph"]
     filename: str | None = Field(default=None, max_length=200)
     pathname: str | None = Field(default=None, max_length=500)
     url: str | None = Field(default=None, max_length=2000)
@@ -82,7 +82,7 @@ async def dispatch(job_id: str) -> bool:
 async def create_job(body: JobRequest, request: Request) -> dict[str, Any]:
     owner = workspace(request)
     spec = body.model_dump(mode="json", exclude_none=True, exclude={"id"})
-    if body.kind in {"pdf", "csv"}:
+    if body.kind in {"pdf", "docx", "csv"}:
         prefix = f"workspaces/{owner}/uploads/{body.id}/"
         if not body.pathname or not body.pathname.startswith(prefix) or ".." in body.pathname:
             raise HTTPException(403, "Upload does not belong to this job and workspace.")
@@ -94,6 +94,8 @@ async def create_job(body: JobRequest, request: Request) -> dict[str, Any]:
         maximum = (
             get_settings().max_pdf_size_bytes
             if body.kind == "pdf"
+            else get_settings().max_docx_size_bytes
+            if body.kind == "docx"
             else get_settings().max_csv_size_bytes
         )
         if head.size > maximum:

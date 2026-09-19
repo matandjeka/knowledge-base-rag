@@ -16,6 +16,7 @@ from app.models import (
     SourceType,
     WebsiteCitationLocator,
 )
+from app.models.citations import DocxCitationLocator
 
 _WHITESPACE = re.compile(r"\s+")
 _MAX_EXCERPT_LENGTH = 1200
@@ -120,6 +121,8 @@ def _bounded_excerpt(text: str) -> str:
 
 
 def _locator_details(evidence: Evidence) -> CitationLocator:
+    if evidence.source_type is SourceType.DOCX and evidence.row_id:
+        return DocxCitationLocator(paragraph_number=int(evidence.row_id))
     if evidence.source_type is SourceType.PDF and evidence.page_number is not None:
         return PdfCitationLocator(page_number=evidence.page_number)
     if evidence.source_type is SourceType.WEBSITE and evidence.source_uri:
@@ -149,6 +152,8 @@ def _graph_supports(evidence: Evidence) -> list[GraphPathSupport]:
 
 
 def _support_locator_details(support: GraphSupport) -> CitationLocator:
+    if support.source_type is SourceType.DOCX and support.row_id:
+        return DocxCitationLocator(paragraph_number=int(support.row_id))
     if support.source_type is SourceType.PDF and support.page_number is not None:
         return PdfCitationLocator(page_number=support.page_number)
     if support.source_type is SourceType.WEBSITE and support.source_uri:
@@ -161,6 +166,8 @@ def _support_locator_details(support: GraphSupport) -> CitationLocator:
 
 
 def _display_locator(locator: CitationLocator) -> str:
+    if isinstance(locator, DocxCitationLocator):
+        return f"paragraph {locator.paragraph_number}"
     if isinstance(locator, PdfCitationLocator):
         return f"page {locator.page_number}"
     if isinstance(locator, WebsiteCitationLocator):

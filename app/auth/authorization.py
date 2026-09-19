@@ -83,7 +83,8 @@ async def authorize(request: Request) -> None:
         settings.serverless
         and request.method == "POST"
         and (
-            request.url.path in {"/sources/pdf", "/sources/csv", "/sources/website", "/graph/index"}
+            request.url.path
+            in {"/sources/pdf", "/sources/docx", "/sources/csv", "/sources/website", "/graph/index"}
             or (request.url.path.startswith("/sources/") and request.url.path.endswith("/index"))
         )
     ):

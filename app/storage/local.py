@@ -69,7 +69,11 @@ class LocalSourceStorage:
         filename: str = "original.pdf",
     ) -> str:
         """Atomically persist an original source file."""
-        if Path(filename).name != filename or filename not in {"original.pdf", "original.csv"}:
+        if Path(filename).name != filename or filename not in {
+            "original.pdf",
+            "original.csv",
+            "original.docx",
+        }:
             raise ValueError("Original artifact filename is not allowed")
         directory = self._source_directory(workspace_id, source_id)
         path = directory / filename

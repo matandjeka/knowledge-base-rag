@@ -67,7 +67,7 @@ class VercelBlobSourceStorage:
     async def save_original(
         self, workspace_id: str, source_id: UUID, data: bytes, *, filename: str = "original.pdf"
     ) -> str:
-        if filename not in {"original.pdf", "original.csv"}:
+        if filename not in {"original.pdf", "original.csv", "original.docx"}:
             raise ValueError("Original filename is not allowed")
         name = self.name(workspace_id, source_id, filename)
         await self.write(name, data)

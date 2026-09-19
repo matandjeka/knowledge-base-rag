@@ -54,13 +54,19 @@ class AzureBlobSourceStorage:
         *,
         filename: str = "original.pdf",
     ) -> str:
-        if filename not in {"original.pdf", "original.csv"}:
+        if filename not in {"original.pdf", "original.csv", "original.docx"}:
             raise ValueError("Original artifact filename is not allowed")
         name = self._name(workspace_id, source_id, filename)
         await self._upload_immutable(
             name,
             data,
-            content_type={"original.pdf": "application/pdf", "original.csv": "text/csv"}[filename],
+            content_type={
+                "original.pdf": "application/pdf",
+                "original.csv": "text/csv",
+                "original.docx": (
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                ),
+            }[filename],
         )
         return f"azureblob://{self._container.container_name}/{name}"
 

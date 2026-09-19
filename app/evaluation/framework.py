@@ -43,6 +43,7 @@ class ExpectedEvidence(BaseModel):
     def validate_locator(self) -> Self:
         """Keep logical labels aligned with source-specific citation locations."""
         patterns = {
+            SourceType.DOCX: r"^paragraph [1-9][0-9]*$",
             SourceType.PDF: r"^page [1-9][0-9]*$",
             SourceType.WEBSITE: r"^https?://[^\s]+$",
             SourceType.CSV: r"^row \S(?:.*\S)?$",

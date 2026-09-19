@@ -15,6 +15,7 @@ from sqlalchemy import delete, select, update
 
 from app.api.dependencies import (
     get_csv_ingestion_service,
+    get_docx_ingestion_service,
     get_embedding_service,
     get_lexical_store,
     get_metadata_engine,
@@ -217,7 +218,18 @@ async def parse(job: dict[str, Any], cp: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("Upload is outside the workspace")
         data = await storage().read(path)
         filename = spec["filename"]
-        if spec["kind"] == "pdf":
+        if spec["kind"] == "docx":
+            service_docx = get_docx_ingestion_service()
+            from app.ingestion.docx import DOCX_MIME
+
+            parsed_docx = await asyncio.to_thread(
+                service_docx._connector.parse, filename, DOCX_MIME, data
+            )
+            locator = await storage().save_original(
+                workspace, source_id, data, filename="original.docx"
+            )
+            documents = service_docx.build_documents(source, parsed_docx.paragraphs, locator)
+        elif spec["kind"] == "pdf":
             service_pdf = get_pdf_ingestion_service()
             parsed = await asyncio.to_thread(
                 service_pdf._connector.parse, filename, "application/pdf", data
