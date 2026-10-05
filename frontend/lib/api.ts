@@ -55,3 +55,6 @@ export async function api<T>(path: string, options: RequestInit = {}, retry = tr
 export function post<T>(path: string, body: unknown): Promise<T> {
   return api<T>(path, {method: "POST", body: JSON.stringify(body)});
 }
+export function del(path: string): Promise<void> {
+  return api<void>(path, {method: "DELETE"});
+}

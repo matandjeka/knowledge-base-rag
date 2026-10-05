@@ -18,7 +18,15 @@ from app.evaluation.reranking_comparison import (
     score_reranking_runs,
 )
 from app.generation.extractive import ExtractiveGenerator
-from app.models import Evidence, FusionStrategy, QueryRequest, RetrievalMode, SourceType
+from app.models import (
+    Evidence,
+    FusionStrategy,
+    QueryRequest,
+    RetrievalMode,
+    Source,
+    SourceConfig,
+    SourceType,
+)
 from app.repositories import InMemorySourceRepository
 from app.reranking.service import (
     HuggingFaceCrossEncoderReranker,
@@ -216,8 +224,16 @@ async def test_query_service_requests_reranking_candidate_pool_then_returns_top_
             return candidates[:top_k]
 
     fusion = RecordingFusion()
+    repository = InMemorySourceRepository()
+    await repository.create(
+        Source(
+            workspace_id="workspace",
+            name="Handbook",
+            config=SourceConfig(source_type=SourceType.PDF),
+        )
+    )
     service = QueryService(
-        InMemorySourceRepository(),
+        repository,
         cast(Any, object()),
         cast(Any, object()),
         ExtractiveGenerator(),

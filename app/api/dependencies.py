@@ -506,4 +506,7 @@ def get_query_service() -> QueryService:
             confidence_threshold=settings.routing_confidence_threshold,
             winning_margin=settings.routing_winning_margin,
         ),
+        inventory_storage=(
+            get_source_storage() if settings.metadata_store_backend == "memory" else None
+        ),
     )

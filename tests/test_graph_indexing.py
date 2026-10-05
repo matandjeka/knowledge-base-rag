@@ -348,8 +348,16 @@ async def test_query_service_dispatches_graph_mode_through_common_contract() -> 
                 )
             ]
 
+    repository = InMemorySourceRepository()
+    await repository.create(
+        Source(
+            workspace_id="workspace",
+            name="Handbook",
+            config=SourceConfig(source_type=SourceType.PDF),
+        )
+    )
     service = QueryService(
-        InMemorySourceRepository(),
+        repository,
         StubRetriever("vector"),
         StubRetriever("window"),
         ExtractiveGenerator(),

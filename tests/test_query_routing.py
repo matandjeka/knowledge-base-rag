@@ -166,6 +166,13 @@ def test_sql_intent_without_a_ready_database_falls_back_to_document_fusion() -> 
 @pytest.mark.asyncio
 async def test_query_service_exposes_override_and_automatic_traces() -> None:
     repository = InMemorySourceRepository()
+    await repository.create(
+        Source(
+            workspace_id="workspace",
+            name="Handbook",
+            config=SourceConfig(source_type=SourceType.PDF),
+        )
+    )
     empty = EmptyRetriever()
     fusion = RecordingFusion()
     service = QueryService(
@@ -205,6 +212,13 @@ async def test_query_service_exposes_override_and_automatic_traces() -> None:
 @pytest.mark.asyncio
 async def test_missing_graph_index_falls_back_to_default_fusion() -> None:
     repository = InMemorySourceRepository()
+    await repository.create(
+        Source(
+            workspace_id="workspace",
+            name="Handbook",
+            config=SourceConfig(source_type=SourceType.PDF),
+        )
+    )
     empty = EmptyRetriever()
     fusion = RecordingFusion(graph_missing=True)
     service = QueryService(

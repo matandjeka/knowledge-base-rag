@@ -23,6 +23,8 @@ from app.models import (
     PdfCitationLocator,
     QueryRequest,
     QueryResponse,
+    Source,
+    SourceConfig,
     SourceType,
     WebsiteCitationLocator,
 )
@@ -305,8 +307,16 @@ async def test_generator_can_decline_irrelevant_retrieved_evidence() -> None:
             )
 
     retriever = StaticRetriever()
+    repository = InMemorySourceRepository()
+    await repository.create(
+        Source(
+            workspace_id="workspace",
+            name="Handbook",
+            config=SourceConfig(source_type=SourceType.PDF),
+        )
+    )
     service = QueryService(
-        InMemorySourceRepository(),
+        repository,
         retriever,
         retriever,
         DecliningGenerator(),

@@ -62,3 +62,32 @@ test("graph build reconciles a lost response and prevents duplicate builds",asyn
   await expect(build).toBeDisabled();
   await expect(page.getByText("The service is unavailable. Please try again.",{exact:true})).toHaveCount(0);
 });
+
+test("removing a source asks for confirmation and drops the row",async({page})=>{
+  let sources=[{source_id:"source-1",name:"Retention policy",status:"ready",config:{source_type:"pdf",options:{}}},{source_id:"source-2",name:"Old handbook",status:"ready",config:{source_type:"pdf",options:{}}}];
+  const deleted: string[]=[];
+  await page.route("**/api/backend/**",async route=>{
+    const url=new URL(route.request().url());const path=url.pathname;
+    if(path.endsWith("auth/refresh"))return route.fulfill({json:{access_token:"test-token",user}});
+    if(path.endsWith("settings"))return route.fulfill({json:{}});
+    if(path.endsWith("jobs"))return route.fulfill({json:[]});
+    if(route.request().method()==="DELETE"){
+      const id=path.split("/").pop()!;deleted.push(`${id}?${url.searchParams.get("workspace_id")}`);
+      sources=sources.filter(s=>s.source_id!==id);return route.fulfill({status:204});
+    }
+    if(path.endsWith("sources"))return route.fulfill({json:sources});
+    return route.fulfill({status:404,json:{detail:"Not found"}});
+  });
+  await page.goto("/");
+  await page.getByRole("button",{name:"Sources",exact:true}).click();
+  const row=page.getByRole("row").filter({hasText:"Old handbook"});
+  page.once("dialog",dialog=>dialog.dismiss());
+  await row.getByRole("button",{name:"Remove"}).click();
+  await expect(row).toBeVisible();
+  expect(deleted).toEqual([]);
+  page.once("dialog",dialog=>{expect(dialog.message()).toContain("Old handbook");void dialog.accept();});
+  await row.getByRole("button",{name:"Remove"}).click();
+  await expect(row).toHaveCount(0);
+  await expect(page.getByRole("row").filter({hasText:"Retention policy"})).toBeVisible();
+  expect(deleted).toEqual(["source-2?client-workspace"]);
+});

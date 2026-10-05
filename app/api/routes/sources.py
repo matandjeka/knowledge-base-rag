@@ -1,5 +1,6 @@
 """Knowledge-source registration and inspection routes."""
 
+import logging
 from typing import Annotated
 from uuid import UUID
 
@@ -64,6 +65,7 @@ from app.repositories import SourceRepository
 from app.retrieval.indexing import VectorIndexingService
 from app.storage import SourceStorage
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sources", tags=["sources"])
 _ingest_limit = rate_limit("ingest", "rate_limit_ingest_per_minute")
 
@@ -324,6 +326,66 @@ async def set_source_classification(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Source not found"
         ) from error
+
+
+_FINISHED_JOB_STATUSES = frozenset({"complete", "cancelled", "failed"})
+
+
+@router.delete("/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_source(
+    source_id: UUID,
+    workspace_id: WorkspaceQuery,
+    request: Request,
+    repository: Annotated[SourceRepository, Depends(get_source_repository)],
+    storage: Annotated[SourceStorage, Depends(get_source_storage)],
+) -> None:
+    """Remove a source and its stored artifacts (admin and owner only).
+
+    Retrieval is restricted to registered sources, so the source stops appearing in answers
+    immediately; its index entries are dropped at the workspace's next index build.
+    """
+    from app.auth.organizations import Role, role_allows
+
+    membership = getattr(request.state, "membership", None)
+    settings = get_settings()
+    if settings.auth_enabled and (
+        membership is None or not role_allows(membership.role, Role.ADMIN)
+    ):
+        raise HTTPException(403, "Removing a source requires an admin role.")
+    try:
+        source = await repository.get(workspace_id, source_id)
+        if not classification_visible(source.classification, _clearance(request)):
+            raise SourceNotFoundError(str(source_id))
+        if settings.metadata_store_backend == "postgresql":
+            from app.api.dependencies import get_metadata_engine
+            from app.jobs.repository import JobRepository
+
+            jobs = await JobRepository(get_metadata_engine()).list(workspace_id)
+            if any(job["status"] not in _FINISHED_JOB_STATUSES for job in jobs):
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    "Wait for ingestion activity to finish, or cancel it, "
+                    "before removing a source.",
+                )
+        await repository.delete(workspace_id, source_id)
+    except SourceNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Source not found"
+        ) from error
+    try:
+        await storage.delete_source(workspace_id, source_id)
+    except Exception:
+        # The registry is authoritative and retrieval already excludes the source.
+        logger.exception("Stored artifacts of a removed source could not be deleted")
+    from app.audit import record
+
+    await record(
+        request,
+        "source.deleted",
+        target_type="source",
+        target_id=str(source_id),
+        metadata={"name": source.name, "type": source.config.source_type.value},
+    )
 
 
 @router.post("/{source_id}/index", response_model=SourceIndexResult)
