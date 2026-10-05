@@ -117,6 +117,11 @@ class VercelBlobSourceStorage:
             overwrite=True,
         )
 
+    async def delete_source(self, workspace_id: str, source_id: UUID) -> None:
+        names = await self.names(self.name(workspace_id, source_id, ""))
+        if names:
+            await self.client.delete(names)
+
 
 class VercelBlobLexicalStore(BlobLexicalStore):
     """Reuse BM25 contracts and checksums with a Vercel object transport."""

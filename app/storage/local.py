@@ -1,6 +1,7 @@
 """Workspace-scoped local filesystem storage for ingested sources."""
 
 import asyncio
+import shutil
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol
@@ -51,6 +52,10 @@ class SourceStorage(Protocol):
         self, workspace_id: str, source_id: UUID, manifest: CrawlManifest
     ) -> None:
         """Persist website crawl diagnostics."""
+        ...
+
+    async def delete_source(self, workspace_id: str, source_id: UUID) -> None:
+        """Remove every stored artifact for one source; a missing source is not an error."""
         ...
 
 
@@ -128,6 +133,11 @@ class LocalSourceStorage:
         path = self._source_directory(workspace_id, source_id) / "crawl-manifest.json"
         payload = manifest.model_dump_json(indent=2).encode()
         await asyncio.to_thread(self._write_bytes, path, payload)
+
+    async def delete_source(self, workspace_id: str, source_id: UUID) -> None:
+        """Remove the source directory and everything in it."""
+        directory = self._source_directory(workspace_id, source_id)
+        await asyncio.to_thread(shutil.rmtree, directory, ignore_errors=True)
 
     def _source_directory(self, workspace_id: str, source_id: UUID) -> Path:
         if not workspace_id or any(

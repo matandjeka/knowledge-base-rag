@@ -113,6 +113,16 @@ class AzureBlobSourceStorage:
                 sources.append(Source.model_validate_json(await self._download(str(item.name))))
         return tuple(sorted(sources, key=lambda source: (source.created_at, str(source.source_id))))
 
+    async def delete_source(self, workspace_id: str, source_id: UUID) -> None:
+        """Delete every blob under the source prefix."""
+        prefix = self._name(workspace_id, source_id, "")
+        names = [
+            str(item.name) async for item in self._container.list_blobs(name_starts_with=prefix)
+        ]
+        if names:
+            async for _ in await self._container.delete_blobs(*names):
+                pass
+
     async def _upload_immutable(self, name: str, data: bytes, *, content_type: str) -> None:
         from azure.core.exceptions import ResourceExistsError
         from azure.storage.blob import ContentSettings

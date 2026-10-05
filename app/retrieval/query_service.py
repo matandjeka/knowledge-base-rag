@@ -23,6 +23,7 @@ from app.reranking.service import RerankingService
 from app.retrieval.base import Retriever
 from app.retrieval.fusion import DEFAULT_FUSION_RETRIEVERS, FusionRetriever
 from app.routing import RuleBasedQueryRouter
+from app.storage import SourceStorage
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +49,12 @@ class QueryService:
         reranking_candidate_pool_size: int = 30,
         database_retriever: Retriever | None = None,
         query_router: RuleBasedQueryRouter | None = None,
+        inventory_storage: SourceStorage | None = None,
     ) -> None:
         self._repository = repository
+        # Without durable metadata the in-memory registry is empty after a restart, so the
+        # persisted source inventory also counts as registered (as in index preparation).
+        self._inventory_storage = inventory_storage
         self._retriever = retriever
         self._sentence_window_retriever = sentence_window_retriever
         self._generator = generator
@@ -87,6 +92,15 @@ class QueryService:
             if not classification_visible(source.classification, max_classification):
                 raise SourceNotFoundError(f"Source {source_id} was not found")
         scoped_source_ids = await self._clearance_scope(request, max_classification)
+        if not scoped_source_ids:
+            # An empty filter means "unfiltered" to retrievers; with no retrievable sources,
+            # stale index entries (e.g. of removed sources) must not surface.
+            trace = (
+                None
+                if request.retrieval_mode is RetrievalMode.AUTO
+                else self._override_trace(request, (request.retrieval_mode,))
+            )
+            return await self._build_response(request.question, [], trace)
         if request.retrieval_mode is RetrievalMode.AUTO:
             return await self._query_automatically(
                 request, top_k, max_classification, scoped_source_ids
@@ -164,12 +178,19 @@ class QueryService:
     async def _clearance_scope(
         self, request: QueryRequest, max_classification: Classification
     ) -> frozenset[UUID]:
-        """Source ids the caller may retrieve from, after clearance and the request filter."""
-        if max_classification is Classification.RESTRICTED and not request.source_ids:
-            return frozenset(request.source_ids)
+        """Registered source ids the caller may retrieve from, after clearance and the filter.
+
+        Always an explicit set, so index entries of removed sources are never retrievable.
+        """
+        sources = {
+            source.source_id: source for source in await self._repository.list(request.workspace_id)
+        }
+        if self._inventory_storage is not None:
+            for source in await self._inventory_storage.list_sources(request.workspace_id):
+                sources.setdefault(source.source_id, source)
         visible = {
-            source.source_id
-            for source in await self._repository.list(request.workspace_id)
+            source_id
+            for source_id, source in sources.items()
             if classification_visible(source.classification, max_classification)
         }
         if request.source_ids:
